@@ -1,7 +1,23 @@
 import pandas as pd
 import re
+import os
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
+
+FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+def sanitize_cell(val):
+    """Prevent Excel formula injection by escaping dangerous prefixes."""
+    if isinstance(val, str) and val and val[0] in FORMULA_PREFIXES:
+        return "'" + val
+    return val
+
+def sanitize_dataframe(df):
+    """Apply formula sanitization to all string columns."""
+    df_clean = df.copy()
+    for col in df_clean.select_dtypes(include='object').columns:
+        df_clean[col] = df_clean[col].apply(lambda v: sanitize_cell(v) if isinstance(v, str) else v)
+    return df_clean
 
 df1 = pd.read_csv('Hubspots_RTA_20260330_hubspot.csv')
 df2 = pd.read_csv('Hubspots_RTA_20260330_RTA.csv')
@@ -185,12 +201,20 @@ print("\nSpecial matched rows:")
 print(special_rows.to_string())
 
 # Save to Excel
+OUTPUT_FILE = 'Hubspots_RTA_20260330_hubspot_updated.xlsx'
+
 match_type = df1['_match_type'].copy()
 df1_out = df1.drop(columns=[c for c in df1.columns if c.startswith('_')])
-df1_out.to_excel('Hubspots_RTA_20260330_hubspot_updated.xlsx', index=False)
+df1_out = sanitize_dataframe(df1_out)
+
+# MED-3: Handle file lock — try primary path, fall back to timestamped name
+import io
+buffer = io.BytesIO()
+df1_out.to_excel(buffer, index=False, engine='openpyxl')
+buffer.seek(0)
 
 # Color matches: yellow for fuzzy/direction_strip, red for no_pc
-wb = load_workbook('Hubspots_RTA_20260330_hubspot_updated.xlsx')
+wb = load_workbook(buffer)
 ws = wb.active
 
 rta_col = None
@@ -212,7 +236,14 @@ for i, mt in enumerate(match_type):
         ws.cell(row=i+2, column=rta_col).fill = red_fill
         red_count += 1
 
-wb.save('Hubspots_RTA_20260330_hubspot_updated.xlsx')
-print(f"\nColored {yellow_count} cells yellow (fuzzy/alias)")
+try:
+    wb.save(OUTPUT_FILE)
+    print(f"\nSaved: {OUTPUT_FILE}")
+except PermissionError:
+    from datetime import datetime
+    fallback = f'Hubspots_RTA_updated_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    wb.save(fallback)
+    print(f"\n{OUTPUT_FILE} is locked (open in Excel?). Saved to: {fallback}")
+
+print(f"Colored {yellow_count} cells yellow (fuzzy/alias)")
 print(f"Colored {red_count} cells red (street match, postal code mismatch)")
-print("Saved: Hubspots_RTA_20260330_hubspot_updated.xlsx")

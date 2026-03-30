@@ -9,34 +9,75 @@ from openpyxl.styles import PatternFill
 
 MAX_UPLOAD_ROWS = 50000  # prevent memory exhaustion
 
+# ── Server-side rate limiter (shared across ALL sessions) ──
+import threading
+
+@st.cache_resource
+def _get_rate_limiter():
+    """Singleton rate limiter persisted across sessions via cache_resource."""
+    return {
+        'lock': threading.Lock(),
+        'attempts': {},   # username -> list of timestamps
+        'global': [],     # all failed timestamps (IP-agnostic but still global)
+    }
+
+RATE_WINDOW = 300       # 5-minute sliding window
+MAX_PER_USER = 5        # max failures per username in window
+MAX_GLOBAL = 30         # max total failures across all users in window
+
+def check_rate_limit(username):
+    """Return (allowed, message). Enforces per-user AND global limits."""
+    rl = _get_rate_limiter()
+    now = time.time()
+    with rl['lock']:
+        # Prune old entries
+        rl['global'] = [t for t in rl['global'] if now - t < RATE_WINDOW]
+        if username in rl['attempts']:
+            rl['attempts'][username] = [t for t in rl['attempts'][username] if now - t < RATE_WINDOW]
+
+        # Check global limit
+        if len(rl['global']) >= MAX_GLOBAL:
+            return False, "Too many login failures across all accounts. Try again later."
+
+        # Check per-user limit
+        user_attempts = rl['attempts'].get(username, [])
+        if len(user_attempts) >= MAX_PER_USER:
+            oldest = user_attempts[0]
+            wait = int(RATE_WINDOW - (now - oldest)) + 1
+            return False, f"Account '{username}' locked for {wait}s due to too many failed attempts."
+
+        return True, ""
+
+def record_failed_attempt(username):
+    """Record a failed login for rate limiting."""
+    rl = _get_rate_limiter()
+    now = time.time()
+    with rl['lock']:
+        rl['global'].append(now)
+        if username not in rl['attempts']:
+            rl['attempts'][username] = []
+        rl['attempts'][username].append(now)
+
 # ── Page config ──
 st.set_page_config(page_title="Address Matcher", page_icon="📍", layout="wide")
 
 # ── Authentication ──
-# Credentials stored as bcrypt hashes in .streamlit/secrets.toml
-# To add a user:
-#   1. Generate hash: python -c "import bcrypt; print(bcrypt.hashpw('PASSWORD'.encode(), bcrypt.gensalt()).decode())"
-#   2. Add to .streamlit/secrets.toml under [users]: username = "hash"
-#   3. On Streamlit Cloud: add the same in the app's Secrets settings
+# Credentials are loaded from Streamlit secrets (see Streamlit docs).
+# Managed separately — never committed to version control.
 
 def verify_password(password, stored_hash):
     """Check password against bcrypt hash (salted, slow, constant-time)."""
     return bcrypt.checkpw(password.encode(), stored_hash.encode())
 
-MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_SECONDS = 60
-
 def login():
-    """Show login form and validate credentials with brute-force protection."""
+    """Show login form with server-side rate limiting and session timeout."""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = ''
-        st.session_state.login_attempts = 0
-        st.session_state.lockout_until = 0.0
         st.session_state.login_time = 0.0
 
     if st.session_state.authenticated:
-        # SEC-04: Session timeout after 8 hours of inactivity
+        # Session timeout after 8 hours
         if st.session_state.login_time > 0 and (time.time() - st.session_state.login_time) > 28800:
             st.session_state.authenticated = False
             st.session_state.username = ''
@@ -49,33 +90,24 @@ def login():
     st.title("🔐 Address Matcher — Login")
     st.markdown("Please log in to continue.")
 
-    # SEC-03: Check lockout
-    now = time.time()
-    if st.session_state.lockout_until > now:
-        remaining = int(st.session_state.lockout_until - now)
-        st.error(f"Too many failed attempts. Try again in {remaining} seconds.")
-        return False
-
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Log in", use_container_width=True)
 
         if submitted:
-            if username in users and verify_password(password, users[username]):
+            # Server-side rate limit check (shared across ALL sessions)
+            allowed, msg = check_rate_limit(username)
+            if not allowed:
+                st.error(msg)
+            elif username in users and verify_password(password, users[username]):
                 st.session_state.authenticated = True
                 st.session_state.username = username
-                st.session_state.login_attempts = 0
                 st.session_state.login_time = time.time()
                 st.rerun()
             else:
-                st.session_state.login_attempts += 1
-                remaining = MAX_LOGIN_ATTEMPTS - st.session_state.login_attempts
-                if st.session_state.login_attempts >= MAX_LOGIN_ATTEMPTS:
-                    st.session_state.lockout_until = time.time() + LOCKOUT_SECONDS
-                    st.error(f"Account locked for {LOCKOUT_SECONDS} seconds due to too many failed attempts.")
-                else:
-                    st.error(f"Invalid username or password. {remaining} attempts remaining.")
+                record_failed_attempt(username)
+                st.error("Invalid username or password.")
     return False
 
 if not login():
@@ -336,6 +368,12 @@ if hub_file and rta_file:
 
     # ── Run matching ──
     st.markdown("---")
+    enable_no_pc = st.checkbox(
+        "Enable risky matching (street-only, ignore postal code mismatch)",
+        value=False,
+        help="When enabled, addresses that match on street but have different postal codes will be "
+             "included in the output (marked red). When disabled, only postal-code-verified matches are exported."
+    )
     if st.button("🔍 Run Address Matching", type="primary", use_container_width=True):
         with st.spinner("Matching addresses..."):
 
@@ -372,6 +410,24 @@ if hub_file and rta_file:
                 df['_k_unit']      = df['_street'].apply(strip_unit) + '|' + df['_pc']
                 df['_k_unit_dir']  = df['_street'].apply(strip_unit).apply(strip_direction) + '|' + df['_pc']
 
+            # MED-1: Detect duplicate keys with conflicting statuses
+            dup_check = df_rta.groupby('_k_exact')[rta_status_col].nunique()
+            conflict_keys = dup_check[dup_check > 1]
+            if len(conflict_keys) > 0:
+                st.warning(f"**{len(conflict_keys)} RTA address(es) have conflicting statuses.** "
+                           f"First match will be used. Review these in the RTA data:")
+                conflict_detail = []
+                for key in conflict_keys.index[:20]:  # show max 20
+                    rows = df_rta[df_rta['_k_exact'] == key][[rta_addr_no_col, rta_street_col, rta_pc_col, rta_status_col]]
+                    for _, r in rows.iterrows():
+                        conflict_detail.append({
+                            'Address': f"{r[rta_addr_no_col]} {r[rta_street_col]}",
+                            'PostalCode': r[rta_pc_col],
+                            'Status': r[rta_status_col],
+                            'Key': key,
+                        })
+                st.dataframe(pd.DataFrame(conflict_detail), use_container_width=True)
+
             # Build lookups: key -> (rta_full_address, rta_status) as separate Series
             lookup_addr = {}
             lookup_status = {}
@@ -405,7 +461,18 @@ if hub_file and rta_file:
                     newly_matched = unmatched & df_hub['RTA Address'].notna() & (df_hub['_match_type'] == '')
                     df_hub.loc[newly_matched, '_match_type'] = mtype
 
-            # Pass 5: street-only (no postal code) → RED
+            # MED-1: Mark rows that matched a conflicting key with orange
+            conflict_key_set = set(conflict_keys.index)
+            for idx in df_hub[df_hub['RTA Address'].notna()].index:
+                key = df_hub.loc[idx, '_k_exact']
+                if key in conflict_key_set and df_hub.loc[idx, '_match_type'] == 'exact':
+                    df_hub.loc[idx, '_match_type'] = 'conflict'
+
+            # Pass 5: street-only (no postal code) → RED (opt-in only)
+            if not enable_no_pc:
+                st.info("Risky matching (street-only, no postal code) is disabled. "
+                        "Enable the checkbox above to include these matches.")
+
             r_lookup_addr = {}
             r_lookup_status_map = {}
             r_lookup_addr_stripped = {}
@@ -422,25 +489,27 @@ if hub_file and rta_file:
                         r_lookup_addr_stripped[st_key] = addr_val
                         r_lookup_status_stripped[st_key] = status_val
 
-            unmatched = df_hub['RTA Address'].isna()
-            for idx in df_hub[unmatched].index:
-                h_st = df_hub.loc[idx, '_street']
-                h_st_canon = df_hub.loc[idx, '_street_canon']
-                for lookup_a, lookup_s, key in [
-                    (r_lookup_addr, r_lookup_status_map, h_st),
-                    (r_lookup_addr, r_lookup_status_map, h_st_canon),
-                    (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st)),
-                    (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st_canon)),
-                ]:
-                    if key in lookup_a:
-                        df_hub.loc[idx, 'RTA Address'] = lookup_a[key]
-                        df_hub.loc[idx, 'RTA Status'] = lookup_s.get(key, '')
-                        df_hub.loc[idx, '_match_type'] = 'no_pc'
-                        break
+            if enable_no_pc:
+                unmatched = df_hub['RTA Address'].isna()
+                for idx in df_hub[unmatched].index:
+                    h_st = df_hub.loc[idx, '_street']
+                    h_st_canon = df_hub.loc[idx, '_street_canon']
+                    for lookup_a, lookup_s, key in [
+                        (r_lookup_addr, r_lookup_status_map, h_st),
+                        (r_lookup_addr, r_lookup_status_map, h_st_canon),
+                        (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st)),
+                        (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st_canon)),
+                    ]:
+                        if key in lookup_a:
+                            df_hub.loc[idx, 'RTA Address'] = lookup_a[key]
+                            df_hub.loc[idx, 'RTA Status'] = lookup_s.get(key, '')
+                            df_hub.loc[idx, '_match_type'] = 'no_pc'
+                            break
 
             # Stats
             exact_count = (df_hub['_match_type'] == 'exact').sum()
             yellow_count = df_hub['_match_type'].isin(['fuzzy', 'direction_strip']).sum()
+            orange_count = (df_hub['_match_type'] == 'conflict').sum()
             red_count = (df_hub['_match_type'] == 'no_pc').sum()
             total_matched = df_hub['RTA Address'].notna().sum()
             total_rows = len(df_hub)
@@ -448,15 +517,16 @@ if hub_file and rta_file:
             st.markdown("---")
             st.subheader("Results")
 
-            m1, m2, m3, m4, m5 = st.columns(5)
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
             m1.metric("Total rows", total_rows)
             m2.metric("Total matched", total_matched)
             m3.metric("Exact (white)", exact_count)
             m4.metric("Fuzzy (yellow)", yellow_count)
-            m5.metric("Risky (red)", red_count)
+            m5.metric("Conflict (orange)", orange_count)
+            m6.metric("Risky (red)", red_count)
 
             # Show special matches
-            special = df_hub[df_hub['_match_type'].isin(['fuzzy', 'direction_strip', 'no_pc'])][
+            special = df_hub[df_hub['_match_type'].isin(['fuzzy', 'direction_strip', 'no_pc', 'conflict'])][
                 [hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status', '_match_type']
             ].copy()
             special.columns = ['Street Address', 'Postal Code', 'RTA Address', 'RTA Status', 'Match Type']
@@ -465,10 +535,14 @@ if hub_file and rta_file:
                 st.markdown("**Flagged matches for review:**")
 
                 def highlight_match_type(row):
-                    if row['Match Type'] == 'no_pc':
-                        return ['background-color: #FF6666'] * len(row)
-                    else:
-                        return ['background-color: #FFFF00'] * len(row)
+                    colors = {
+                        'no_pc': '#FF6666',
+                        'conflict': '#FFA500',
+                        'fuzzy': '#FFFF00',
+                        'direction_strip': '#FFFF00',
+                    }
+                    bg = colors.get(row['Match Type'], '#FFFFFF')
+                    return [f'background-color: {bg}'] * len(row)
 
                 st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
 
@@ -500,12 +574,15 @@ if hub_file and rta_file:
 
             yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
             red_fill = PatternFill(start_color='FF6666', end_color='FF6666', fill_type='solid')
+            orange_fill = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
 
             for i, mt in enumerate(match_type):
                 if mt in ('fuzzy', 'direction_strip'):
                     fill = yellow_fill
                 elif mt == 'no_pc':
                     fill = red_fill
+                elif mt == 'conflict':
+                    fill = orange_fill
                 else:
                     continue
                 if rta_addr_col_idx:
@@ -529,7 +606,8 @@ if hub_file and rta_file:
             ---
             **Color legend:**
             - ⬜ **White** — Exact match (street + postal code)
-            - 🟨 **Yellow** — Fuzzy match (name alias, direction stripped, spelling variant) — same postal code area
+            - 🟨 **Yellow** — Fuzzy match (name alias, direction stripped, spelling variant)
+            - 🟧 **Orange** — Exact match but RTA has conflicting statuses for this address
             - 🟥 **Red** — Street matched but postal codes differ — manual verification needed
             """)
 
