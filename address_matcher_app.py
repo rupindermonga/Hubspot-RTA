@@ -3,8 +3,12 @@ import pandas as pd
 import re
 import io
 import hashlib
+import hmac
+import time
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
+
+MAX_UPLOAD_ROWS = 50000  # prevent memory exhaustion
 
 # ── Page config ──
 st.set_page_config(page_title="Address Matcher", page_icon="📍", layout="wide")
@@ -16,23 +20,43 @@ st.set_page_config(page_title="Address Matcher", page_icon="📍", layout="wide"
 #   2. Add to .streamlit/secrets.toml under [users]: username = "hash"
 #   3. On Streamlit Cloud: add the same in the app's Secrets settings
 
-def verify_password(password, hashed):
-    """Check password against SHA-256 hash."""
-    return hashlib.sha256(password.encode()).hexdigest() == hashed
+def verify_password(password, stored_hash):
+    """Check password against SHA-256 hash using constant-time comparison."""
+    computed = hashlib.sha256(password.encode()).hexdigest()
+    return hmac.compare_digest(computed, stored_hash)
+
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_SECONDS = 60
 
 def login():
-    """Show login form and validate credentials."""
+    """Show login form and validate credentials with brute-force protection."""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = ''
+        st.session_state.login_attempts = 0
+        st.session_state.lockout_until = 0.0
+        st.session_state.login_time = 0.0
 
     if st.session_state.authenticated:
-        return True
+        # SEC-04: Session timeout after 8 hours of inactivity
+        if st.session_state.login_time > 0 and (time.time() - st.session_state.login_time) > 28800:
+            st.session_state.authenticated = False
+            st.session_state.username = ''
+            st.warning("Session expired. Please log in again.")
+        else:
+            return True
 
     users = st.secrets.get("users", {})
 
     st.title("🔐 Address Matcher — Login")
     st.markdown("Please log in to continue.")
+
+    # SEC-03: Check lockout
+    now = time.time()
+    if st.session_state.lockout_until > now:
+        remaining = int(st.session_state.lockout_until - now)
+        st.error(f"Too many failed attempts. Try again in {remaining} seconds.")
+        return False
 
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -43,9 +67,17 @@ def login():
             if username in users and verify_password(password, users[username]):
                 st.session_state.authenticated = True
                 st.session_state.username = username
+                st.session_state.login_attempts = 0
+                st.session_state.login_time = time.time()
                 st.rerun()
             else:
-                st.error("Invalid username or password.")
+                st.session_state.login_attempts += 1
+                remaining = MAX_LOGIN_ATTEMPTS - st.session_state.login_attempts
+                if st.session_state.login_attempts >= MAX_LOGIN_ATTEMPTS:
+                    st.session_state.lockout_until = time.time() + LOCKOUT_SECONDS
+                    st.error(f"Account locked for {LOCKOUT_SECONDS} seconds due to too many failed attempts.")
+                else:
+                    st.error(f"Invalid username or password. {remaining} attempts remaining.")
     return False
 
 if not login():
@@ -93,10 +125,18 @@ def normalize(s):
     return ' '.join(words)
 
 def strip_direction(s):
-    return re.sub(r'\s+[NSEW]$', '', s)
+    # QA-02: Only strip trailing direction if street name has 3+ words
+    # (prevents "123 N ST" from losing the "N" which IS the street name)
+    words = s.split()
+    if len(words) >= 3 and words[-1] in ('N', 'S', 'E', 'W'):
+        return ' '.join(words[:-1])
+    return s
 
 def norm_pc(s):
     s = str(s).strip().upper().replace(' ', '')
+    # QA-01: Treat NaN/empty/N/A as empty — prevents false matches
+    if s in ('NAN', 'NONE', 'N/A', 'NA', 'NULL', ''):
+        return ''
     corrected = []
     for i, c in enumerate(s[:6]):
         if i in (1, 3, 5):
@@ -172,6 +212,14 @@ with upload_col2:
 
 def load_file(uploaded_file):
     """Load uploaded file as DataFrame, handling xlsx (with sheet selection) and csv."""
+    # SEC-07: Check file size (max 50MB)
+    uploaded_file.seek(0, 2)
+    size_mb = uploaded_file.tell() / (1024 * 1024)
+    uploaded_file.seek(0)
+    if size_mb > 50:
+        st.error(f"File too large ({size_mb:.1f} MB). Maximum is 50 MB.")
+        st.stop()
+
     if uploaded_file.name.endswith('.csv'):
         return pd.read_csv(uploaded_file), None
     else:
@@ -200,6 +248,12 @@ if hub_file and rta_file:
         df_rta = pd.read_excel(rta_xl, sheet_name=rta_sheet)
     else:
         df_rta = rta_result[0]
+
+    # SEC-07: Row count guard
+    for label, df in [("Hubspot", df_hub), ("RTA", df_rta)]:
+        if len(df) > MAX_UPLOAD_ROWS:
+            st.error(f"{label} file has {len(df):,} rows. Maximum is {MAX_UPLOAD_ROWS:,}.")
+            st.stop()
 
     st.markdown("---")
     cfg1, cfg2 = st.columns(2)
@@ -296,13 +350,13 @@ if hub_file and rta_file:
                 df['_k_canon']     = df['_street_canon']  + '|' + df['_pc']
                 df['_k_canon_dir'] = df['_street_canon'].apply(strip_direction) + '|' + df['_pc']
 
-            # Build lookups: key -> (rta_full_address, rta_status)
-            # We need to return TWO columns, so build a combined lookup
-            df_rta['_lookup_val'] = df_rta['_rta_full'] + '|||' + df_rta[rta_status_col].fillna('').astype(str)
-
-            lookups = {}
+            # Build lookups: key -> (rta_full_address, rta_status) as separate Series
+            lookup_addr = {}
+            lookup_status = {}
             for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir']:
-                lookups[key_col] = df_rta.drop_duplicates(subset=key_col).set_index(key_col)['_lookup_val']
+                deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
+                lookup_addr[key_col] = deduped['_rta_full']
+                lookup_status[key_col] = deduped[rta_status_col].fillna('').astype(str)
 
             # Initialize output columns
             df_hub['RTA Address'] = pd.Series(dtype='object')
@@ -318,39 +372,47 @@ if hub_file and rta_file:
 
             for key_col, mtype in passes:
                 unmatched = df_hub['RTA Address'].isna()
-                mapped = df_hub.loc[unmatched, key_col].map(lookups[key_col])
-                matched_mask = mapped.notna()
+                mapped_addr = df_hub.loc[unmatched, key_col].map(lookup_addr[key_col])
+                mapped_status = df_hub.loc[unmatched, key_col].map(lookup_status[key_col])
+                matched_mask = mapped_addr.notna()
                 if matched_mask.any():
-                    split = mapped[matched_mask].str.split('|||', n=1, expand=True)
-                    df_hub.loc[split.index, 'RTA Address'] = split[0].values
-                    df_hub.loc[split.index, 'RTA Status'] = split[1].values
+                    df_hub.loc[mapped_addr[matched_mask].index, 'RTA Address'] = mapped_addr[matched_mask].values
+                    df_hub.loc[mapped_status[matched_mask].index, 'RTA Status'] = mapped_status[matched_mask].values
                     newly_matched = unmatched & df_hub['RTA Address'].notna() & (df_hub['_match_type'] == '')
                     df_hub.loc[newly_matched, '_match_type'] = mtype
 
             # Pass 5: street-only (no postal code) → RED
-            r_lookup_street = {}
-            r_lookup_street_stripped = {}
+            r_lookup_addr = {}
+            r_lookup_status_map = {}
+            r_lookup_addr_stripped = {}
+            r_lookup_status_stripped = {}
             for i in range(len(df_rta)):
-                val = df_rta.iloc[i]['_lookup_val']
+                addr_val = df_rta.iloc[i]['_rta_full']
+                status_val = str(df_rta.iloc[i].get(rta_status_col, ''))
                 for st_key in [df_rta.iloc[i]['_street'], df_rta.iloc[i]['_street_canon']]:
-                    if st_key and st_key not in r_lookup_street:
-                        r_lookup_street[st_key] = val
+                    if st_key and st_key not in r_lookup_addr:
+                        r_lookup_addr[st_key] = addr_val
+                        r_lookup_status_map[st_key] = status_val
                 for st_key in [strip_direction(df_rta.iloc[i]['_street']), strip_direction(df_rta.iloc[i]['_street_canon'])]:
-                    if st_key and st_key not in r_lookup_street_stripped:
-                        r_lookup_street_stripped[st_key] = val
+                    if st_key and st_key not in r_lookup_addr_stripped:
+                        r_lookup_addr_stripped[st_key] = addr_val
+                        r_lookup_status_stripped[st_key] = status_val
 
             unmatched = df_hub['RTA Address'].isna()
             for idx in df_hub[unmatched].index:
                 h_st = df_hub.loc[idx, '_street']
                 h_st_canon = df_hub.loc[idx, '_street_canon']
-                val = (r_lookup_street.get(h_st) or r_lookup_street.get(h_st_canon)
-                       or r_lookup_street_stripped.get(strip_direction(h_st))
-                       or r_lookup_street_stripped.get(strip_direction(h_st_canon)))
-                if val:
-                    parts = val.split('|||', 1)
-                    df_hub.loc[idx, 'RTA Address'] = parts[0]
-                    df_hub.loc[idx, 'RTA Status'] = parts[1] if len(parts) > 1 else ''
-                    df_hub.loc[idx, '_match_type'] = 'no_pc'
+                for lookup_a, lookup_s, key in [
+                    (r_lookup_addr, r_lookup_status_map, h_st),
+                    (r_lookup_addr, r_lookup_status_map, h_st_canon),
+                    (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st)),
+                    (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st_canon)),
+                ]:
+                    if key in lookup_a:
+                        df_hub.loc[idx, 'RTA Address'] = lookup_a[key]
+                        df_hub.loc[idx, 'RTA Status'] = lookup_s.get(key, '')
+                        df_hub.loc[idx, '_match_type'] = 'no_pc'
+                        break
 
             # Stats
             exact_count = (df_hub['_match_type'] == 'exact').sum()

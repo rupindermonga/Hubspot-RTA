@@ -43,10 +43,15 @@ def normalize(s):
     return ' '.join(words)
 
 def strip_direction(s):
-    return re.sub(r'\s+[NSEW]$', '', s)
+    words = s.split()
+    if len(words) >= 3 and words[-1] in ('N', 'S', 'E', 'W'):
+        return ' '.join(words[:-1])
+    return s
 
 def norm_pc(s):
     s = str(s).strip().upper().replace(' ', '')
+    if s in ('NAN', 'NONE', 'N/A', 'NA', 'NULL', ''):
+        return ''
     # Fix common typo: letter O vs digit 0 in postal codes
     # Canadian postal codes follow pattern: letter-digit-letter digit-letter-digit
     # Positions 1,3,5 should be digits; 0,2,4 should be letters
