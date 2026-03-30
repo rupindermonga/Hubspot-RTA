@@ -547,10 +547,20 @@ if hub_file and rta_file:
                 st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
 
             # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
-            matched_rta_addresses = set(df_hub['RTA Address'].dropna().unique())
-            df_rta['In Hubspot'] = df_rta['_rta_full'].apply(
-                lambda x: 'Yes' if x in matched_rta_addresses else 'No'
-            )
+            # Collect ALL normalized keys that were matched from the Hubspot side
+            matched_hub_keys = set()
+            for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
+                matched_rows = df_hub[df_hub['RTA Address'].notna()]
+                matched_hub_keys.update(matched_rows[key_col].dropna().unique())
+
+            # An RTA row is "In Hubspot" if ANY of its key variants appears in the matched set
+            def rta_in_hubspot(row):
+                for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
+                    if row[key_col] in matched_hub_keys:
+                        return 'Yes'
+                return 'No'
+
+            df_rta['In Hubspot'] = df_rta.apply(rta_in_hubspot, axis=1)
             not_in_hubspot = (df_rta['In Hubspot'] == 'No').sum()
             in_hubspot = (df_rta['In Hubspot'] == 'Yes').sum()
 
