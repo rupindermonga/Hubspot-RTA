@@ -429,12 +429,24 @@ if hub_file and rta_file:
                 st.dataframe(pd.DataFrame(conflict_detail), use_container_width=True)
 
             # Build lookups: key -> (rta_full_address, rta_status) as separate Series
+            # For conflicting keys, concatenate all statuses so user sees the ambiguity
+            conflict_key_set = set(conflict_keys.index)
+            conflict_status_map = {}
+            for key in conflict_key_set:
+                statuses = df_rta[df_rta['_k_exact'] == key][rta_status_col].dropna().unique()
+                conflict_status_map[key] = ' | '.join(str(s) for s in statuses)
+
             lookup_addr = {}
             lookup_status = {}
             for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
                 deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
                 lookup_addr[key_col] = deduped['_rta_full']
-                lookup_status[key_col] = deduped[rta_status_col].fillna('').astype(str)
+                # For conflicting keys, show all statuses joined with |
+                status_series = deduped[rta_status_col].fillna('').astype(str).copy()
+                for ck, cv in conflict_status_map.items():
+                    if ck in status_series.index:
+                        status_series[ck] = f"CONFLICT: {cv}"
+                lookup_status[key_col] = status_series
 
             # Initialize output columns
             df_hub['RTA Address'] = pd.Series(dtype='object')

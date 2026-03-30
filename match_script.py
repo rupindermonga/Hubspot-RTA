@@ -134,6 +134,15 @@ for df, prefix in [(df1, 'h'), (df2, 'r')]:
     df['_k_canon']       = df['_street_canon']  + '|' + df['_pc']
     df['_k_canon_dir']   = df['_street_canon'].apply(strip_direction) + '|' + df['_pc']
 
+# Detect duplicate keys with conflicting data
+dup_check = df2.groupby('_k_exact')['RTA Full Address'].nunique()
+dup_conflicts = dup_check[dup_check > 1]
+if len(dup_conflicts) > 0:
+    print(f"\nWARNING: {len(dup_conflicts)} RTA key(s) have multiple different addresses (first row used):")
+    for key in list(dup_conflicts.index)[:10]:
+        vals = df2[df2['_k_exact'] == key]['RTA Full Address'].unique()
+        print(f"  {key} -> {list(vals)}")
+
 # Build lookups from RTA
 lookups = {}
 for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir']:
