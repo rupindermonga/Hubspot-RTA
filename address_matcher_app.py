@@ -506,24 +506,64 @@ if hub_file and rta_file:
                             df_hub.loc[idx, '_match_type'] = 'no_pc'
                             break
 
+            # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
+            matched_hub_keys = set()
+            key_cols_list = ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']
+            for key_col in key_cols_list:
+                matched_rows = df_hub[df_hub['RTA Address'].notna()]
+                matched_hub_keys.update(matched_rows[key_col].dropna().unique())
+
+            def rta_in_hubspot(row):
+                for key_col in key_cols_list:
+                    if row[key_col] in matched_hub_keys:
+                        return 'Yes'
+                return 'No'
+
+            df_rta['In Hubspot'] = df_rta.apply(rta_in_hubspot, axis=1)
+            rta_in_hub = (df_rta['In Hubspot'] == 'Yes').sum()
+            rta_not_in_hub = (df_rta['In Hubspot'] == 'No').sum()
+
             # Stats
             exact_count = (df_hub['_match_type'] == 'exact').sum()
             yellow_count = df_hub['_match_type'].isin(['fuzzy', 'direction_strip']).sum()
             orange_count = (df_hub['_match_type'] == 'conflict').sum()
             red_count = (df_hub['_match_type'] == 'no_pc').sum()
-            total_matched = df_hub['RTA Address'].notna().sum()
-            total_rows = len(df_hub)
+            hub_matched = df_hub['RTA Address'].notna().sum()
+            hub_unmatched = len(df_hub) - hub_matched
 
+            # ── Dashboard ──
             st.markdown("---")
-            st.subheader("Results")
+            st.subheader("📊 Dashboard")
 
-            m1, m2, m3, m4, m5, m6 = st.columns(6)
-            m1.metric("Total rows", total_rows)
-            m2.metric("Total matched", total_matched)
-            m3.metric("Exact (white)", exact_count)
-            m4.metric("Fuzzy (yellow)", yellow_count)
-            m5.metric("Conflict (orange)", orange_count)
-            m6.metric("Risky (red)", red_count)
+            # Row 1: Side-by-side overview
+            d1, d2 = st.columns(2)
+            with d1:
+                st.markdown("**Hubspot**")
+                h1, h2, h3 = st.columns(3)
+                h1.metric("Total", len(df_hub))
+                h2.metric("Matched", hub_matched)
+                h3.metric("Unmatched", hub_unmatched)
+            with d2:
+                st.markdown("**RTA**")
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Total", len(df_rta))
+                r2.metric("In Hubspot", rta_in_hub)
+                r3.metric("Not in Hubspot", rta_not_in_hub)
+
+            # Explain the difference
+            if hub_matched != rta_in_hub:
+                diff = hub_matched - rta_in_hub
+                st.info(f"**Why {hub_matched} vs {rta_in_hub}?** — "
+                        f"{diff} Hubspot row(s) map to the same RTA address "
+                        f"(duplicate Hubspot entries pointing to one RTA record).")
+
+            # Row 2: Match type breakdown
+            st.markdown("**Match breakdown:**")
+            b1, b2, b3, b4 = st.columns(4)
+            b1.metric("⬜ Exact", exact_count)
+            b2.metric("🟨 Fuzzy", yellow_count)
+            b3.metric("🟧 Conflict", orange_count)
+            b4.metric("🟥 Risky (no PC)", red_count)
 
             # Show special matches
             special = df_hub[df_hub['_match_type'].isin(['fuzzy', 'direction_strip', 'no_pc', 'conflict'])][
@@ -546,40 +586,16 @@ if hub_file and rta_file:
 
                 st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
 
-            # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
-            # Collect ALL normalized keys that were matched from the Hubspot side
-            matched_hub_keys = set()
-            for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
-                matched_rows = df_hub[df_hub['RTA Address'].notna()]
-                matched_hub_keys.update(matched_rows[key_col].dropna().unique())
-
-            # An RTA row is "In Hubspot" if ANY of its key variants appears in the matched set
-            def rta_in_hubspot(row):
-                for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
-                    if row[key_col] in matched_hub_keys:
-                        return 'Yes'
-                return 'No'
-
-            df_rta['In Hubspot'] = df_rta.apply(rta_in_hubspot, axis=1)
-            not_in_hubspot = (df_rta['In Hubspot'] == 'No').sum()
-            in_hubspot = (df_rta['In Hubspot'] == 'Yes').sum()
-
-            st.markdown("---")
-            st.subheader("RTA Coverage")
-            r1, r2, r3 = st.columns(3)
-            r1.metric("Total RTA addresses", len(df_rta))
-            r2.metric("In Hubspot", in_hubspot)
-            r3.metric("NOT in Hubspot", not_in_hubspot)
-
-            if not_in_hubspot > 0:
-                st.markdown(f"**{not_in_hubspot} RTA addresses have no Hubspot match** — "
-                            "these are marked in the RTA sheet of the output for Redrabbit update.")
+            # RTA not in Hubspot detail
+            if rta_not_in_hub > 0:
+                st.markdown(f"**{rta_not_in_hub} RTA addresses not in Hubspot** — "
+                            "marked 🟪 purple in the RTA sheet for Redrabbit update.")
                 rta_not_matched = df_rta[df_rta['In Hubspot'] == 'No'][
                     [rta_addr_no_col, rta_street_col, rta_locality_col, rta_pc_col, rta_status_col]
                 ].head(20)
                 st.dataframe(rta_not_matched, use_container_width=True)
-                if not_in_hubspot > 20:
-                    st.caption(f"Showing first 20 of {not_in_hubspot}. Full list in the downloaded Excel.")
+                if rta_not_in_hub > 20:
+                    st.caption(f"Showing first 20 of {rta_not_in_hub}. Full list in the downloaded Excel.")
 
             # Preview output
             preview = df_hub[[hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status']].head(20)
