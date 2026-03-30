@@ -429,23 +429,30 @@ if hub_file and rta_file:
                 st.dataframe(pd.DataFrame(conflict_detail), use_container_width=True)
 
             # Build lookups: key -> (rta_full_address, rta_status) as separate Series
-            # For conflicting keys, concatenate all statuses so user sees the ambiguity
+            # For conflicting keys, concatenate ALL addresses and statuses
             conflict_key_set = set(conflict_keys.index)
+            conflict_addr_map = {}
             conflict_status_map = {}
             for key in conflict_key_set:
-                statuses = df_rta[df_rta['_k_exact'] == key][rta_status_col].dropna().unique()
+                rows = df_rta[df_rta['_k_exact'] == key]
+                addrs = rows['_rta_full'].dropna().unique()
+                statuses = rows[rta_status_col].dropna().unique()
+                conflict_addr_map[key] = ' | '.join(str(a) for a in addrs)
                 conflict_status_map[key] = ' | '.join(str(s) for s in statuses)
 
             lookup_addr = {}
             lookup_status = {}
             for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
                 deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
-                lookup_addr[key_col] = deduped['_rta_full']
-                # For conflicting keys, show all statuses joined with |
+                addr_series = deduped['_rta_full'].copy()
                 status_series = deduped[rta_status_col].fillna('').astype(str).copy()
-                for ck, cv in conflict_status_map.items():
+                # Override conflicting keys with all candidates
+                for ck in conflict_key_set:
+                    if ck in addr_series.index:
+                        addr_series[ck] = f"CONFLICT: {conflict_addr_map[ck]}"
                     if ck in status_series.index:
-                        status_series[ck] = f"CONFLICT: {cv}"
+                        status_series[ck] = f"CONFLICT: {conflict_status_map[ck]}"
+                lookup_addr[key_col] = addr_series
                 lookup_status[key_col] = status_series
 
             # Initialize output columns

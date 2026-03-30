@@ -1,8 +1,13 @@
 import pandas as pd
 import re
 import os
+import sys
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
+
+# ── Configuration ──
+# Pass --no-pc flag to enable risky street-only matching (disabled by default)
+ENABLE_NO_PC = '--no-pc' in sys.argv
 
 FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
 
@@ -170,34 +175,37 @@ for key_col, mtype in passes:
 fuzzy_count = df1['_match_type'].isin(['fuzzy', 'direction_strip']).sum()
 print(f"\nFuzzy/alias matches (to color yellow): {fuzzy_count}")
 
-# --- Pass 5: street-only match (no postal code) for remaining unmatched rows ---
-# These are risky matches (different postal codes) -> colored RED
-r_lookup_street = {}
-r_lookup_street_stripped = {}
-for i in range(len(df2)):
-    st = df2.iloc[i]['_street']
-    st_canon = df2.iloc[i]['_street_canon']
-    st_s = strip_direction(st)
-    st_canon_s = strip_direction(st_canon)
-    rta = df2.iloc[i]['RTA Full Address']
-    for key in [st, st_canon]:
-        if key and key not in r_lookup_street:
-            r_lookup_street[key] = rta
-    for key in [st_s, st_canon_s]:
-        if key and key not in r_lookup_street_stripped:
-            r_lookup_street_stripped[key] = rta
+# --- Pass 5: street-only match (no postal code) — OPT-IN via --no-pc flag ---
+if ENABLE_NO_PC:
+    print("\n[--no-pc enabled] Running risky street-only matching...")
+    r_lookup_street = {}
+    r_lookup_street_stripped = {}
+    for i in range(len(df2)):
+        st = df2.iloc[i]['_street']
+        st_canon = df2.iloc[i]['_street_canon']
+        st_s = strip_direction(st)
+        st_canon_s = strip_direction(st_canon)
+        rta = df2.iloc[i]['RTA Full Address']
+        for key in [st, st_canon]:
+            if key and key not in r_lookup_street:
+                r_lookup_street[key] = rta
+        for key in [st_s, st_canon_s]:
+            if key and key not in r_lookup_street_stripped:
+                r_lookup_street_stripped[key] = rta
 
-unmatched = df1['RTA Address'].isna()
-for idx in df1[unmatched].index:
-    h_st = df1.loc[idx, '_street']
-    h_st_canon = df1.loc[idx, '_street_canon']
-    h_st_s = strip_direction(h_st)
-    h_st_canon_s = strip_direction(h_st_canon)
-    rta = (r_lookup_street.get(h_st) or r_lookup_street.get(h_st_canon)
-           or r_lookup_street_stripped.get(h_st_s) or r_lookup_street_stripped.get(h_st_canon_s))
-    if rta:
-        df1.loc[idx, 'RTA Address'] = rta
-        df1.loc[idx, '_match_type'] = 'no_pc'
+    unmatched = df1['RTA Address'].isna()
+    for idx in df1[unmatched].index:
+        h_st = df1.loc[idx, '_street']
+        h_st_canon = df1.loc[idx, '_street_canon']
+        h_st_s = strip_direction(h_st)
+        h_st_canon_s = strip_direction(h_st_canon)
+        rta = (r_lookup_street.get(h_st) or r_lookup_street.get(h_st_canon)
+               or r_lookup_street_stripped.get(h_st_s) or r_lookup_street_stripped.get(h_st_canon_s))
+        if rta:
+            df1.loc[idx, 'RTA Address'] = rta
+            df1.loc[idx, '_match_type'] = 'no_pc'
+else:
+    print("\n[no-PC matching disabled] Run with --no-pc flag to enable risky street-only matching.")
 
 no_pc_count = (df1['_match_type'] == 'no_pc').sum()
 total = df1['RTA Address'].notna().sum()
