@@ -546,27 +546,57 @@ if hub_file and rta_file:
 
                 st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
 
+            # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
+            matched_rta_addresses = set(df_hub['RTA Address'].dropna().unique())
+            df_rta['In Hubspot'] = df_rta['_rta_full'].apply(
+                lambda x: 'Yes' if x in matched_rta_addresses else 'No'
+            )
+            not_in_hubspot = (df_rta['In Hubspot'] == 'No').sum()
+            in_hubspot = (df_rta['In Hubspot'] == 'Yes').sum()
+
+            st.markdown("---")
+            st.subheader("RTA Coverage")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Total RTA addresses", len(df_rta))
+            r2.metric("In Hubspot", in_hubspot)
+            r3.metric("NOT in Hubspot", not_in_hubspot)
+
+            if not_in_hubspot > 0:
+                st.markdown(f"**{not_in_hubspot} RTA addresses have no Hubspot match** — "
+                            "these are marked in the RTA sheet of the output for Redrabbit update.")
+                rta_not_matched = df_rta[df_rta['In Hubspot'] == 'No'][
+                    [rta_addr_no_col, rta_street_col, rta_locality_col, rta_pc_col, rta_status_col]
+                ].head(20)
+                st.dataframe(rta_not_matched, use_container_width=True)
+                if not_in_hubspot > 20:
+                    st.caption(f"Showing first 20 of {not_in_hubspot}. Full list in the downloaded Excel.")
+
             # Preview output
             preview = df_hub[[hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status']].head(20)
-            st.markdown("**Output preview (first 20 rows):**")
+            st.markdown("**Hubspot output preview (first 20 rows):**")
             st.dataframe(preview, use_container_width=True)
 
-            # Save to Excel with colors
+            # ── Save to Excel with TWO sheets: Hubspot + RTA ──
             match_type = df_hub['_match_type'].copy()
-            df_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
+            df_hub_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
+            df_rta_out = df_rta.drop(columns=[c for c in df_rta.columns if c.startswith('_')])
+
+            df_hub_out = sanitize_dataframe(df_hub_out)
+            df_rta_out = sanitize_dataframe(df_rta_out)
 
             buffer = io.BytesIO()
-            df_out = sanitize_dataframe(df_out)
-            df_out.to_excel(buffer, index=False, engine='openpyxl')
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df_hub_out.to_excel(writer, sheet_name='Hubspot', index=False)
+                df_rta_out.to_excel(writer, sheet_name='RTA', index=False)
             buffer.seek(0)
 
             wb = load_workbook(buffer)
-            ws = wb.active
 
-            # Find RTA Address column index
+            # ── Color Hubspot sheet ──
+            ws_hub = wb['Hubspot']
             rta_addr_col_idx = None
             rta_status_col_idx = None
-            for cell in ws[1]:
+            for cell in ws_hub[1]:
                 if cell.value == 'RTA Address':
                     rta_addr_col_idx = cell.column
                 elif cell.value == 'RTA Status':
@@ -586,18 +616,35 @@ if hub_file and rta_file:
                 else:
                     continue
                 if rta_addr_col_idx:
-                    ws.cell(row=i+2, column=rta_addr_col_idx).fill = fill
+                    ws_hub.cell(row=i+2, column=rta_addr_col_idx).fill = fill
                 if rta_status_col_idx:
-                    ws.cell(row=i+2, column=rta_status_col_idx).fill = fill
+                    ws_hub.cell(row=i+2, column=rta_status_col_idx).fill = fill
+
+            # ── Color RTA sheet: highlight "Not in Hubspot" rows ──
+            ws_rta = wb['RTA']
+            purple_fill = PatternFill(start_color='D8B4FE', end_color='D8B4FE', fill_type='solid')
+
+            in_hub_col_idx = None
+            for cell in ws_rta[1]:
+                if cell.value == 'In Hubspot':
+                    in_hub_col_idx = cell.column
+                    break
+
+            if in_hub_col_idx:
+                for row_idx in range(2, ws_rta.max_row + 1):
+                    cell = ws_rta.cell(row=row_idx, column=in_hub_col_idx)
+                    if cell.value == 'No':
+                        for col_idx in range(1, ws_rta.max_column + 1):
+                            ws_rta.cell(row=row_idx, column=col_idx).fill = purple_fill
 
             out_buffer = io.BytesIO()
             wb.save(out_buffer)
             out_buffer.seek(0)
 
             st.download_button(
-                label="📥 Download color-coded Excel",
+                label="📥 Download color-coded Excel (Hubspot + RTA sheets)",
                 data=out_buffer,
-                file_name="hubspot_matched_output.xlsx",
+                file_name="hubspot_rta_matched_output.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
@@ -605,10 +652,16 @@ if hub_file and rta_file:
             st.markdown("""
             ---
             **Color legend:**
+
+            **Hubspot sheet:**
             - ⬜ **White** — Exact match (street + postal code)
             - 🟨 **Yellow** — Fuzzy match (name alias, direction stripped, spelling variant)
             - 🟧 **Orange** — Exact match but RTA has conflicting statuses for this address
             - 🟥 **Red** — Street matched but postal codes differ — manual verification needed
+
+            **RTA sheet:**
+            - 🟪 **Purple** — NOT in Hubspot (needs Redrabbit update)
+            - ⬜ **White** — Matched to at least one Hubspot record
             """)
 
 elif hub_file or rta_file:
