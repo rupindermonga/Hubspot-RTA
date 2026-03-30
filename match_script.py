@@ -142,16 +142,25 @@ for df, prefix in [(df1, 'h'), (df2, 'r')]:
 # Detect duplicate keys with conflicting data
 dup_check = df2.groupby('_k_exact')['RTA Full Address'].nunique()
 dup_conflicts = dup_check[dup_check > 1]
+conflict_key_set = set(dup_conflicts.index)
+conflict_addr_map = {}
 if len(dup_conflicts) > 0:
-    print(f"\nWARNING: {len(dup_conflicts)} RTA key(s) have multiple different addresses (first row used):")
-    for key in list(dup_conflicts.index)[:10]:
+    print(f"\nWARNING: {len(dup_conflicts)} RTA key(s) have conflicting addresses:")
+    for key in dup_conflicts.index:
         vals = df2[df2['_k_exact'] == key]['RTA Full Address'].unique()
-        print(f"  {key} -> {list(vals)}")
+        conflict_addr_map[key] = ' | '.join(str(v) for v in vals)
+        if key in list(dup_conflicts.index)[:10]:
+            print(f"  {key} -> {list(vals)}")
 
-# Build lookups from RTA
+# Build lookups from RTA — conflicting keys show all candidates
 lookups = {}
 for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir']:
-    lookups[key_col] = df2.drop_duplicates(subset=key_col).set_index(key_col)['RTA Full Address']
+    deduped = df2.drop_duplicates(subset=key_col).set_index(key_col)
+    addr_series = deduped['RTA Full Address'].copy()
+    for ck in conflict_key_set:
+        if ck in addr_series.index:
+            addr_series[ck] = f"CONFLICT: {conflict_addr_map[ck]}"
+    lookups[key_col] = addr_series
 
 # Match in priority order
 df1['RTA Address'] = pd.Series(dtype='object')
