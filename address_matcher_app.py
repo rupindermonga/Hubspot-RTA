@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import io
-import hashlib
-import hmac
+import bcrypt
 import time
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -14,16 +13,15 @@ MAX_UPLOAD_ROWS = 50000  # prevent memory exhaustion
 st.set_page_config(page_title="Address Matcher", page_icon="📍", layout="wide")
 
 # ── Authentication ──
-# Credentials stored as SHA-256 hashes in .streamlit/secrets.toml
+# Credentials stored as bcrypt hashes in .streamlit/secrets.toml
 # To add a user:
-#   1. Generate hash: python -c "import hashlib; print(hashlib.sha256('PASSWORD'.encode()).hexdigest())"
+#   1. Generate hash: python -c "import bcrypt; print(bcrypt.hashpw('PASSWORD'.encode(), bcrypt.gensalt()).decode())"
 #   2. Add to .streamlit/secrets.toml under [users]: username = "hash"
 #   3. On Streamlit Cloud: add the same in the app's Secrets settings
 
 def verify_password(password, stored_hash):
-    """Check password against SHA-256 hash using constant-time comparison."""
-    computed = hashlib.sha256(password.encode()).hexdigest()
-    return hmac.compare_digest(computed, stored_hash)
+    """Check password against bcrypt hash (salted, slow, constant-time)."""
+    return bcrypt.checkpw(password.encode(), stored_hash.encode())
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_SECONDS = 60
@@ -93,6 +91,22 @@ if st.sidebar.button("Logout"):
 st.title("📍 Address Matcher")
 st.markdown("Upload **Hubspot** and **RTA** files separately. The app matches addresses and appends RTA Address + RTA Status to the Hubspot file.")
 
+# ── SEC-06: Formula injection sanitization ──
+FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+def sanitize_cell(val):
+    """Prevent Excel formula injection by escaping dangerous prefixes."""
+    if isinstance(val, str) and val and val[0] in FORMULA_PREFIXES:
+        return "'" + val
+    return val
+
+def sanitize_dataframe(df):
+    """Apply formula sanitization to all string columns in a DataFrame."""
+    df_clean = df.copy()
+    for col in df_clean.select_dtypes(include='object').columns:
+        df_clean[col] = df_clean[col].apply(lambda v: sanitize_cell(v) if isinstance(v, str) else v)
+    return df_clean
+
 # ── Normalization engine ──
 ABBREVS = {
     'STREET': 'ST', 'ROAD': 'RD', 'DRIVE': 'DR', 'AVENUE': 'AVE',
@@ -131,6 +145,11 @@ def strip_direction(s):
     if len(words) >= 3 and words[-1] in ('N', 'S', 'E', 'W'):
         return ' '.join(words[:-1])
     return s
+
+def strip_unit(s):
+    """QA-03: Strip unit suffixes like -U1, -U2, U1 from address numbers.
+    '97U2 PIONEER RD' -> '97 PIONEER RD', '9632U1 HWY 638' -> '9632 HWY 638'"""
+    return re.sub(r'^(\d+)[- ]?U\d+', r'\1', s)
 
 def norm_pc(s):
     s = str(s).strip().upper().replace(' ', '')
@@ -349,11 +368,14 @@ if hub_file and rta_file:
                 df['_k_dir']       = df['_street'].apply(strip_direction) + '|' + df['_pc']
                 df['_k_canon']     = df['_street_canon']  + '|' + df['_pc']
                 df['_k_canon_dir'] = df['_street_canon'].apply(strip_direction) + '|' + df['_pc']
+                # QA-03: Unit-stripped keys (97U2 PIONEER RD -> 97 PIONEER RD)
+                df['_k_unit']      = df['_street'].apply(strip_unit) + '|' + df['_pc']
+                df['_k_unit_dir']  = df['_street'].apply(strip_unit).apply(strip_direction) + '|' + df['_pc']
 
             # Build lookups: key -> (rta_full_address, rta_status) as separate Series
             lookup_addr = {}
             lookup_status = {}
-            for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir']:
+            for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
                 deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
                 lookup_addr[key_col] = deduped['_rta_full']
                 lookup_status[key_col] = deduped[rta_status_col].fillna('').astype(str)
@@ -368,6 +390,8 @@ if hub_file and rta_file:
                 ('_k_dir',       'direction_strip'),
                 ('_k_canon',     'fuzzy'),
                 ('_k_canon_dir', 'fuzzy'),
+                ('_k_unit',      'fuzzy'),
+                ('_k_unit_dir',  'fuzzy'),
             ]
 
             for key_col, mtype in passes:
@@ -458,6 +482,7 @@ if hub_file and rta_file:
             df_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
 
             buffer = io.BytesIO()
+            df_out = sanitize_dataframe(df_out)
             df_out.to_excel(buffer, index=False, engine='openpyxl')
             buffer.seek(0)
 
