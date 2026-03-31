@@ -59,7 +59,7 @@ def record_failed_attempt(username):
         rl['attempts'][username].append(now)
 
 # ── Page config ──
-st.set_page_config(page_title="Address Matcher", page_icon="📍", layout="wide")
+st.set_page_config(page_title="Finel.AI — Address Matcher", page_icon="🔮", layout="wide")
 
 # ── Authentication ──
 # Credentials are loaded from Streamlit secrets (see Streamlit docs).
@@ -87,7 +87,14 @@ def login():
 
     users = st.secrets.get("users", {})
 
-    st.title("🔐 Address Matcher — Login")
+    st.markdown("""
+    <div style="text-align:center; padding: 2rem 0 1rem 0;">
+        <span style="font-size: 2.5rem; font-weight: 800; letter-spacing: -1px;">
+            <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span><span style="color: #64748b;">.AI</span>
+        </span>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.25rem;">Address Matcher</p>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("Please log in to continue.")
 
     with st.form("login_form"):
@@ -120,7 +127,14 @@ if st.sidebar.button("Logout"):
     st.session_state.username = ''
     st.rerun()
 
-st.title("📍 Address Matcher")
+st.markdown("""
+<div style="padding: 0.5rem 0 0.5rem 0;">
+    <span style="font-size: 2rem; font-weight: 800; letter-spacing: -1px;">
+        <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span><span style="color: #64748b;">.AI</span>
+    </span>
+    <span style="font-size: 1.3rem; color: #94a3b8; margin-left: 0.5rem;">Address Matcher</span>
+</div>
+""", unsafe_allow_html=True)
 st.markdown("Upload **Hubspot** and **RTA** files separately. The app matches addresses and appends RTA Address + RTA Status to the Hubspot file.")
 
 # ── SEC-06: Formula injection sanitization ──
@@ -711,3 +725,11 @@ if hub_file and rta_file:
 
 elif hub_file or rta_file:
     st.info("Please upload both files to proceed.")
+
+# ── Footer ──
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; padding: 1rem 0; color: #64748b; font-size: 0.8rem;">
+    Powered by <span style="font-weight: 700;"><span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span>.AI</span>
+</div>
+""", unsafe_allow_html=True)
