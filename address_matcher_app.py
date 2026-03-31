@@ -77,12 +77,15 @@ def login():
         st.session_state.login_time = 0.0
 
     if st.session_state.authenticated:
-        # Session timeout after 8 hours
-        if st.session_state.login_time > 0 and (time.time() - st.session_state.login_time) > 28800:
+        now = time.time()
+        # Inactivity timeout: expire after 2 hours of no interaction
+        if st.session_state.login_time > 0 and (now - st.session_state.login_time) > 7200:
             st.session_state.authenticated = False
             st.session_state.username = ''
-            st.warning("Session expired. Please log in again.")
+            st.warning("Session expired due to inactivity. Please log in again.")
         else:
+            # Reset timer on every page interaction (Streamlit reruns on each action)
+            st.session_state.login_time = now
             return True
 
     users = st.secrets.get("users", {})
@@ -340,11 +343,15 @@ def load_file(uploaded_file):
         st.error(f"File too large ({size_mb:.1f} MB). Maximum is 50 MB.")
         st.stop()
 
-    if uploaded_file.name.endswith('.csv'):
-        return pd.read_csv(uploaded_file), None
-    else:
-        xl = pd.ExcelFile(uploaded_file)
-        return xl, xl.sheet_names
+    try:
+        if uploaded_file.name.endswith('.csv'):
+            return pd.read_csv(uploaded_file), None
+        else:
+            xl = pd.ExcelFile(uploaded_file)
+            return xl, xl.sheet_names
+    except Exception as e:
+        st.error(f"Could not read **{uploaded_file.name}**: {e}")
+        st.stop()
 
 
 if hub_file and rta_file:
