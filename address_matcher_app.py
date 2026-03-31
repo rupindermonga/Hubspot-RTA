@@ -137,6 +137,61 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.markdown("Upload **Hubspot** and **RTA** files separately. The app matches addresses and appends RTA Address + RTA Status to the Hubspot file.")
 
+with st.expander("How does this app work?"):
+    st.markdown("""
+### What it does
+This app compares addresses from your **Hubspot** contact list against the **RTA** (Ready to Activate) database to find matches. For each Hubspot contact, it checks if their address exists in the RTA system and brings back the RTA address and status.
+
+### How to use
+1. **Upload** your Hubspot file and RTA file (Excel or CSV)
+2. **Select** the correct columns for street address, postal code, etc.
+3. **Click "Run Address Matching"** to start
+4. **Review** the dashboard and flagged matches
+5. **Download** the color-coded Excel output
+
+### How matching works
+The app runs **5 passes**, from safest to riskiest:
+
+1. **Exact match** — Street address + postal code match perfectly after normalization (abbreviations like Street/ST, Road/RD are standardized, PO Boxes and Suite numbers are stripped)
+2. **Direction strip** — Same as above, but trailing directions (N/S/E/W) are ignored, e.g. "28 Alton Lane" matches "28 ALTON LANE EAST"
+3. **Fuzzy/alias match** — Known street name variants are treated as the same road, e.g. "Findlay Hill Rd" = "Findlay Rd", "Panache Northshore Rd" = "Panache N Shr Rd"
+4. **Unit suffix strip** — Unit numbers like "-U1", "-U2" are removed so "97-U2 Pioneer Rd" matches "97 Pioneer Rd"
+5. **Street-only match** *(opt-in)* — Matches on street address only, ignoring postal code. This is risky because different towns can have the same street name.
+
+### Understanding the dashboard
+
+**Hubspot Matched** = number of Hubspot rows that found an RTA address
+
+**RTA In Hubspot** = number of unique RTA rows that were matched
+
+These numbers can differ because multiple Hubspot contacts may live at the same RTA address (e.g. two people at "123 Main St").
+
+### Understanding the colors
+
+**In the Hubspot sheet (downloaded Excel):**
+
+| Color | Meaning | Action needed |
+|-------|---------|---------------|
+| **White** | Exact match — high confidence | No action needed |
+| **Yellow** | Fuzzy match — name variant or direction stripped | Quick visual check recommended |
+| **Orange** | RTA has conflicting statuses for this address (e.g. both "RTA" and "In Construction") | Check RTA data to confirm correct status |
+| **Red** | Street matched but postal codes differ — could be a different town entirely | Must verify manually before using |
+
+**In the RTA sheet:**
+
+| Color | Meaning | Action needed |
+|-------|---------|---------------|
+| **White** | Matched to a Hubspot contact | No action needed |
+| **Purple** | NOT found in Hubspot — no contact exists for this RTA address | Flag for Redrabbit update |
+
+### Postal code correction
+The app automatically fixes common postal code typos like the letter "O" vs digit "0" (e.g. "POM" is corrected to "P0M"). NaN or missing postal codes are handled safely and will not cause false matches.
+
+### Street name aliases
+The sidebar shows the current list of known street name aliases (e.g. "Hennessy Rd" = "Hennessey Rd"). You can add new aliases if you discover additional variants.
+""")
+
+
 # ── SEC-06: Formula injection sanitization ──
 FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
 
