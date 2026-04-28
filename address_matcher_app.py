@@ -59,7 +59,7 @@ def record_failed_attempt(username):
         rl['attempts'][username].append(now)
 
 # ── Page config ──
-st.set_page_config(page_title="Finel.AI — Address Matcher", page_icon="🔮", layout="wide")
+st.set_page_config(page_title="Finel.AI — Hubspot Tools", page_icon="🔮", layout="wide")
 
 # ── Authentication ──
 # Credentials are loaded from Streamlit secrets (see Streamlit docs).
@@ -95,7 +95,7 @@ def login():
         <span style="font-size: 2.5rem; font-weight: 800; letter-spacing: -1px;">
             <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span><span style="color: #64748b;">.AI</span>
         </span>
-        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.25rem;">Address Matcher</p>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.25rem;">Hubspot Tools</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("Please log in to continue.")
@@ -123,76 +123,20 @@ def login():
 if not login():
     st.stop()
 
-# ── Logged in: show user + logout ──
+# ── Logged in: show user + logout + navigation ──
 st.sidebar.markdown(f"**Logged in as:** {st.session_state.username}")
 if st.sidebar.button("Logout"):
     st.session_state.authenticated = False
     st.session_state.username = ''
     st.rerun()
 
-st.markdown("""
-<div style="padding: 0.5rem 0 0.5rem 0;">
-    <span style="font-size: 2rem; font-weight: 800; letter-spacing: -1px;">
-        <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span><span style="color: #64748b;">.AI</span>
-    </span>
-    <span style="font-size: 1.3rem; color: #94a3b8; margin-left: 0.5rem;">Address Matcher</span>
-</div>
-""", unsafe_allow_html=True)
-st.markdown("Upload **Hubspot** and **RTA** files separately. The app matches addresses and appends RTA Address + RTA Status to the Hubspot file.")
-
-with st.expander("How does this app work?"):
-    st.markdown("""
-### What it does
-This app compares addresses from your **Hubspot** contact list against the **RTA** (Ready to Activate) database to find matches. For each Hubspot contact, it checks if their address exists in the RTA system and brings back the RTA address and status.
-
-### How to use
-1. **Upload** your Hubspot file and RTA file (Excel or CSV)
-2. **Select** the correct columns for street address, postal code, etc.
-3. **Click "Run Address Matching"** to start
-4. **Review** the dashboard and flagged matches
-5. **Download** the color-coded Excel output
-
-### How matching works
-The app runs **5 passes**, from safest to riskiest:
-
-1. **Exact match** — Street address + postal code match perfectly after normalization (abbreviations like Street/ST, Road/RD are standardized, PO Boxes and Suite numbers are stripped)
-2. **Direction strip** — Same as above, but trailing directions (N/S/E/W) are ignored, e.g. "28 Alton Lane" matches "28 ALTON LANE EAST"
-3. **Fuzzy/alias match** — Known street name variants are treated as the same road, e.g. "Findlay Hill Rd" = "Findlay Rd", "Panache Northshore Rd" = "Panache N Shr Rd"
-4. **Unit suffix strip** — Unit numbers like "-U1", "-U2" are removed so "97-U2 Pioneer Rd" matches "97 Pioneer Rd"
-5. **Street-only match** *(opt-in)* — Matches on street address only, ignoring postal code. This is risky because different towns can have the same street name.
-
-### Understanding the dashboard
-
-**Hubspot Matched** = number of Hubspot rows that found an RTA address
-
-**RTA In Hubspot** = number of unique RTA rows that were matched
-
-These numbers can differ because multiple Hubspot contacts may live at the same RTA address (e.g. two people at "123 Main St").
-
-### Understanding the colors
-
-**In the Hubspot sheet (downloaded Excel):**
-
-| Color | Meaning | Action needed |
-|-------|---------|---------------|
-| **White** | Exact match — high confidence | No action needed |
-| **Yellow** | Fuzzy match — name variant or direction stripped | Quick visual check recommended |
-| **Orange** | RTA has conflicting statuses for this address (e.g. both "RTA" and "In Construction") | Check RTA data to confirm correct status |
-| **Red** | Street matched but postal codes differ — could be a different town entirely | Must verify manually before using |
-
-**In the RTA sheet:**
-
-| Color | Meaning | Action needed |
-|-------|---------|---------------|
-| **White** | Matched to a Hubspot contact | No action needed |
-| **Purple** | NOT found in Hubspot — no contact exists for this RTA address | Flag for Redrabbit update |
-
-### Postal code correction
-The app automatically fixes common postal code typos like the letter "O" vs digit "0" (e.g. "POM" is corrected to "P0M"). NaN or missing postal codes are handled safely and will not cause false matches.
-
-### Street name aliases
-The sidebar shows the current list of known street name aliases (e.g. "Hennessy Rd" = "Hennessey Rd"). You can add new aliases if you discover additional variants.
-""")
+st.sidebar.markdown("---")
+view = st.sidebar.radio(
+    "Service",
+    ["Address Matcher", "RTA Status Compare"],
+    key="view",
+)
+st.sidebar.markdown("---")
 
 
 # ── SEC-06: Formula injection sanitization ──
@@ -281,7 +225,7 @@ def apply_canonical(street_full, canonical_map):
     return hnum + sname
 
 
-# ── Sidebar: Aliases ──
+# ── Sidebar: Aliases (shared across both views) ──
 st.sidebar.header("Street Name Aliases")
 st.sidebar.markdown("Add aliases for streets that are the same road but named differently.")
 
@@ -320,19 +264,6 @@ with st.sidebar.form("add_alias"):
             st.success(f"Added: {new_from} → {new_to}")
 
 
-# ── File uploads ──
-st.markdown("---")
-upload_col1, upload_col2 = st.columns(2)
-
-with upload_col1:
-    st.subheader("1. Hubspot File")
-    hub_file = st.file_uploader("Upload Hubspot file (.xlsx / .csv)", type=['xlsx', 'csv'], key='hub')
-
-with upload_col2:
-    st.subheader("2. RTA File")
-    rta_file = st.file_uploader("Upload RTA file (.xlsx / .csv)", type=['xlsx', 'csv'], key='rta')
-
-
 def load_file(uploaded_file):
     """Load uploaded file as DataFrame, handling xlsx (with sheet selection) and csv."""
     # SEC-07: Check file size (max 50MB)
@@ -354,439 +285,920 @@ def load_file(uploaded_file):
         st.stop()
 
 
-if hub_file and rta_file:
+# ── Branding header (dynamic subtitle) ──
+subtitle = "Address Matcher" if view == "Address Matcher" else "RTA Status Compare"
+st.markdown(f"""
+<div style="padding: 0.5rem 0 0.5rem 0;">
+    <span style="font-size: 2rem; font-weight: 800; letter-spacing: -1px;">
+        <span style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Finel</span><span style="color: #64748b;">.AI</span>
+    </span>
+    <span style="font-size: 1.3rem; color: #94a3b8; margin-left: 0.5rem;">{subtitle}</span>
+</div>
+""", unsafe_allow_html=True)
 
-    # ── Load Hubspot ──
-    hub_result = load_file(hub_file)
-    if isinstance(hub_result[0], pd.ExcelFile):
-        hub_xl = hub_result[0]
-        hub_sheets = hub_result[1]
-        hub_sheet = st.selectbox("Hubspot sheet", hub_sheets, key='hub_sheet') if len(hub_sheets) > 1 else hub_sheets[0]
-        df_hub = pd.read_excel(hub_xl, sheet_name=hub_sheet)
-    else:
-        df_hub = hub_result[0]
 
-    # ── Load RTA ──
-    rta_result = load_file(rta_file)
-    if isinstance(rta_result[0], pd.ExcelFile):
-        rta_xl = rta_result[0]
-        rta_sheets = rta_result[1]
-        rta_sheet = st.selectbox("RTA sheet", rta_sheets, key='rta_sheet') if len(rta_sheets) > 1 else rta_sheets[0]
-        df_rta = pd.read_excel(rta_xl, sheet_name=rta_sheet)
-    else:
-        df_rta = rta_result[0]
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                    SERVICE 1 — ADDRESS MATCHER                   ║
+# ╚══════════════════════════════════════════════════════════════════╝
+if view == "Address Matcher":
+    st.markdown("Upload **Hubspot** and **RTA** files separately. The app matches addresses and appends RTA Address + RTA Status to the Hubspot file.")
 
-    # SEC-07: Row count guard
-    for label, df in [("Hubspot", df_hub), ("RTA", df_rta)]:
-        if len(df) > MAX_UPLOAD_ROWS:
-            st.error(f"{label} file has {len(df):,} rows. Maximum is {MAX_UPLOAD_ROWS:,}.")
-            st.stop()
+    with st.expander("How does this app work?"):
+        st.markdown("""
+### What it does
+This app compares addresses from your **Hubspot** contact list against the **RTA** (Ready to Activate) database to find matches. For each Hubspot contact, it checks if their address exists in the RTA system and brings back the RTA address and status.
 
+### How to use
+1. **Upload** your Hubspot file and RTA file (Excel or CSV)
+2. **Select** the correct columns for street address, postal code, etc.
+3. **Click "Run Address Matching"** to start
+4. **Review** the dashboard and flagged matches
+5. **Download** the color-coded Excel output
+
+### How matching works
+The app runs **5 passes**, from safest to riskiest:
+
+1. **Exact match** — Street address + postal code match perfectly after normalization (abbreviations like Street/ST, Road/RD are standardized, PO Boxes and Suite numbers are stripped)
+2. **Direction strip** — Same as above, but trailing directions (N/S/E/W) are ignored, e.g. "28 Alton Lane" matches "28 ALTON LANE EAST"
+3. **Fuzzy/alias match** — Known street name variants are treated as the same road, e.g. "Findlay Hill Rd" = "Findlay Rd", "Panache Northshore Rd" = "Panache N Shr Rd"
+4. **Unit suffix strip** — Unit numbers like "-U1", "-U2" are removed so "97-U2 Pioneer Rd" matches "97 Pioneer Rd"
+5. **Street-only match** *(opt-in)* — Matches on street address only, ignoring postal code. This is risky because different towns can have the same street name.
+
+### Understanding the dashboard
+
+**Hubspot Matched** = number of Hubspot rows that found an RTA address
+
+**RTA In Hubspot** = number of unique RTA rows that were matched
+
+These numbers can differ because multiple Hubspot contacts may live at the same RTA address (e.g. two people at "123 Main St").
+
+### Understanding the colors
+
+**In the Hubspot sheet (downloaded Excel):**
+
+| Color | Meaning | Action needed |
+|-------|---------|---------------|
+| **White** | Exact match — high confidence | No action needed |
+| **Yellow** | Fuzzy match — name variant or direction stripped | Quick visual check recommended |
+| **Orange** | RTA has conflicting statuses for this address (e.g. both "RTA" and "In Construction") | Check RTA data to confirm correct status |
+| **Red** | Street matched but postal codes differ — could be a different town entirely | Must verify manually before using |
+
+**In the RTA sheet:**
+
+| Color | Meaning | Action needed |
+|-------|---------|---------------|
+| **White** | Matched to a Hubspot contact | No action needed |
+| **Purple** | NOT found in Hubspot — no contact exists for this RTA address | Flag for Redrabbit update |
+
+### Postal code correction
+The app automatically fixes common postal code typos like the letter "O" vs digit "0" (e.g. "POM" is corrected to "P0M"). NaN or missing postal codes are handled safely and will not cause false matches.
+
+### Street name aliases
+The sidebar shows the current list of known street name aliases (e.g. "Hennessy Rd" = "Hennessey Rd"). You can add new aliases if you discover additional variants.
+""")
+
+    # ── File uploads ──
     st.markdown("---")
-    cfg1, cfg2 = st.columns(2)
+    upload_col1, upload_col2 = st.columns(2)
 
-    # ── Hubspot column config ──
-    with cfg1:
-        st.subheader("Hubspot Columns")
-        st.dataframe(df_hub.head(5), use_container_width=True)
-        hub_cols = df_hub.columns.tolist()
+    with upload_col1:
+        st.subheader("1. Hubspot File")
+        hub_file = st.file_uploader("Upload Hubspot file (.xlsx / .csv)", type=['xlsx', 'csv'], key='hub')
 
-        hub_street_col = st.selectbox(
-            "Street Address column",
-            hub_cols,
-            index=hub_cols.index('Street Address') if 'Street Address' in hub_cols else 0,
-            key='hub_street'
-        )
-        hub_pc_col = st.selectbox(
-            "Postal Code column",
-            hub_cols,
-            index=hub_cols.index('Postal Code') if 'Postal Code' in hub_cols else 0,
-            key='hub_pc'
-        )
+    with upload_col2:
+        st.subheader("2. RTA File")
+        rta_file = st.file_uploader("Upload RTA file (.xlsx / .csv)", type=['xlsx', 'csv'], key='rta')
 
-    # ── RTA column config ──
-    with cfg2:
-        st.subheader("RTA Columns")
-        st.dataframe(df_rta.head(5), use_container_width=True)
-        rta_cols = df_rta.columns.tolist()
 
-        st.markdown("**Address components** (will be combined for matching)")
-        rta_addr_no_col = st.selectbox(
-            "Address Number column",
-            rta_cols,
-            index=rta_cols.index('AddressNo') if 'AddressNo' in rta_cols else 0,
-            key='rta_addr_no'
-        )
-        rta_street_col = st.selectbox(
-            "Street Name column",
-            rta_cols,
-            index=rta_cols.index('StreetName') if 'StreetName' in rta_cols else 0,
-            key='rta_street'
-        )
-        rta_locality_col = st.selectbox(
-            "Locality / City column",
-            rta_cols,
-            index=rta_cols.index('Locality') if 'Locality' in rta_cols else 0,
-            key='rta_locality'
-        )
-        rta_pc_col = st.selectbox(
-            "Postal Code column",
-            rta_cols,
-            index=rta_cols.index('PostalCode') if 'PostalCode' in rta_cols else 0,
-            key='rta_pc'
-        )
-        rta_status_col = st.selectbox(
-            "RTA Status column (to bring into output)",
-            rta_cols,
-            index=rta_cols.index('RTA Status') if 'RTA Status' in rta_cols else len(rta_cols)-1,
-            key='rta_status'
-        )
+    if hub_file and rta_file:
 
-    # ── Run matching ──
-    st.markdown("---")
-    enable_no_pc = st.checkbox(
-        "Enable risky matching (street-only, ignore postal code mismatch)",
-        value=False,
-        help="When enabled, addresses that match on street but have different postal codes will be "
-             "included in the output (marked red). When disabled, only postal-code-verified matches are exported."
-    )
-    if st.button("🔍 Run Address Matching", type="primary", use_container_width=True):
-        with st.spinner("Matching addresses..."):
+        # ── Load Hubspot ──
+        hub_result = load_file(hub_file)
+        if isinstance(hub_result[0], pd.ExcelFile):
+            hub_xl = hub_result[0]
+            hub_sheets = hub_result[1]
+            hub_sheet = st.selectbox("Hubspot sheet", hub_sheets, key='hub_sheet') if len(hub_sheets) > 1 else hub_sheets[0]
+            df_hub = pd.read_excel(hub_xl, sheet_name=hub_sheet)
+        else:
+            df_hub = hub_result[0]
 
-            canonical_map = dict(st.session_state.aliases)
+        # ── Load RTA ──
+        rta_result = load_file(rta_file)
+        if isinstance(rta_result[0], pd.ExcelFile):
+            rta_xl = rta_result[0]
+            rta_sheets = rta_result[1]
+            rta_sheet = st.selectbox("RTA sheet", rta_sheets, key='rta_sheet') if len(rta_sheets) > 1 else rta_sheets[0]
+            df_rta = pd.read_excel(rta_xl, sheet_name=rta_sheet)
+        else:
+            df_rta = rta_result[0]
 
-            # Build RTA combined full address: "AddressNo StreetName Locality PostalCode"
-            df_rta['_rta_full'] = (
-                df_rta[rta_addr_no_col].fillna('').astype(str).str.strip() + ' ' +
-                df_rta[rta_street_col].fillna('').astype(str).str.strip() + ' ' +
-                df_rta[rta_locality_col].fillna('').astype(str).str.strip() + ' ' +
-                df_rta[rta_pc_col].fillna('').astype(str).str.strip()
-            ).str.strip()
+        # SEC-07: Row count guard
+        for label, df in [("Hubspot", df_hub), ("RTA", df_rta)]:
+            if len(df) > MAX_UPLOAD_ROWS:
+                st.error(f"{label} file has {len(df):,} rows. Maximum is {MAX_UPLOAD_ROWS:,}.")
+                st.stop()
 
-            # Normalize Hubspot
-            df_hub['_street'] = df_hub[hub_street_col].fillna('').apply(normalize)
-            df_hub['_street_canon'] = df_hub['_street'].apply(lambda s: apply_canonical(s, canonical_map))
-            df_hub['_pc'] = df_hub[hub_pc_col].fillna('').apply(norm_pc)
+        st.markdown("---")
+        cfg1, cfg2 = st.columns(2)
 
-            # Normalize RTA: combine AddressNo + StreetName for matching key
-            df_rta['_street'] = (
-                df_rta[rta_addr_no_col].fillna('').astype(str) + ' ' +
-                df_rta[rta_street_col].fillna('')
-            ).apply(normalize)
-            df_rta['_street_canon'] = df_rta['_street'].apply(lambda s: apply_canonical(s, canonical_map))
-            df_rta['_pc'] = df_rta[rta_pc_col].fillna('').apply(norm_pc)
+        # ── Hubspot column config ──
+        with cfg1:
+            st.subheader("Hubspot Columns")
+            st.dataframe(df_hub.head(5), use_container_width=True)
+            hub_cols = df_hub.columns.tolist()
 
-            # Build key variants
-            for df in [df_hub, df_rta]:
-                df['_k_exact']     = df['_street']       + '|' + df['_pc']
-                df['_k_dir']       = df['_street'].apply(strip_direction) + '|' + df['_pc']
-                df['_k_canon']     = df['_street_canon']  + '|' + df['_pc']
-                df['_k_canon_dir'] = df['_street_canon'].apply(strip_direction) + '|' + df['_pc']
-                # QA-03: Unit-stripped keys (97U2 PIONEER RD -> 97 PIONEER RD)
-                df['_k_unit']      = df['_street'].apply(strip_unit) + '|' + df['_pc']
-                df['_k_unit_dir']  = df['_street'].apply(strip_unit).apply(strip_direction) + '|' + df['_pc']
-
-            # MED-1: Detect duplicate keys with conflicting statuses
-            dup_check = df_rta.groupby('_k_exact')[rta_status_col].nunique()
-            conflict_keys = dup_check[dup_check > 1]
-            if len(conflict_keys) > 0:
-                st.warning(f"**{len(conflict_keys)} RTA address(es) have conflicting statuses.** "
-                           f"First match will be used. Review these in the RTA data:")
-                conflict_detail = []
-                for key in conflict_keys.index[:20]:  # show max 20
-                    rows = df_rta[df_rta['_k_exact'] == key][[rta_addr_no_col, rta_street_col, rta_pc_col, rta_status_col]]
-                    for _, r in rows.iterrows():
-                        conflict_detail.append({
-                            'Address': f"{r[rta_addr_no_col]} {r[rta_street_col]}",
-                            'PostalCode': r[rta_pc_col],
-                            'Status': r[rta_status_col],
-                            'Key': key,
-                        })
-                st.dataframe(pd.DataFrame(conflict_detail), use_container_width=True)
-
-            # Build lookups: key -> (rta_full_address, rta_status) as separate Series
-            # For conflicting keys, concatenate ALL addresses and statuses
-            conflict_key_set = set(conflict_keys.index)
-            conflict_addr_map = {}
-            conflict_status_map = {}
-            for key in conflict_key_set:
-                rows = df_rta[df_rta['_k_exact'] == key]
-                addrs = rows['_rta_full'].dropna().unique()
-                statuses = rows[rta_status_col].dropna().unique()
-                conflict_addr_map[key] = ' | '.join(str(a) for a in addrs)
-                conflict_status_map[key] = ' | '.join(str(s) for s in statuses)
-
-            lookup_addr = {}
-            lookup_status = {}
-            for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
-                deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
-                addr_series = deduped['_rta_full'].copy()
-                status_series = deduped[rta_status_col].fillna('').astype(str).copy()
-                # Override conflicting keys with all candidates
-                for ck in conflict_key_set:
-                    if ck in addr_series.index:
-                        addr_series[ck] = f"CONFLICT: {conflict_addr_map[ck]}"
-                    if ck in status_series.index:
-                        status_series[ck] = f"CONFLICT: {conflict_status_map[ck]}"
-                lookup_addr[key_col] = addr_series
-                lookup_status[key_col] = status_series
-
-            # Initialize output columns
-            df_hub['RTA Address'] = pd.Series(dtype='object')
-            df_hub['RTA Status'] = pd.Series(dtype='object')
-            df_hub['_match_type'] = ''
-
-            passes = [
-                ('_k_exact',     'exact'),
-                ('_k_dir',       'direction_strip'),
-                ('_k_canon',     'fuzzy'),
-                ('_k_canon_dir', 'fuzzy'),
-                ('_k_unit',      'fuzzy'),
-                ('_k_unit_dir',  'fuzzy'),
-            ]
-
-            for key_col, mtype in passes:
-                unmatched = df_hub['RTA Address'].isna()
-                mapped_addr = df_hub.loc[unmatched, key_col].map(lookup_addr[key_col])
-                mapped_status = df_hub.loc[unmatched, key_col].map(lookup_status[key_col])
-                matched_mask = mapped_addr.notna()
-                if matched_mask.any():
-                    df_hub.loc[mapped_addr[matched_mask].index, 'RTA Address'] = mapped_addr[matched_mask].values
-                    df_hub.loc[mapped_status[matched_mask].index, 'RTA Status'] = mapped_status[matched_mask].values
-                    newly_matched = unmatched & df_hub['RTA Address'].notna() & (df_hub['_match_type'] == '')
-                    df_hub.loc[newly_matched, '_match_type'] = mtype
-
-            # MED-1: Mark rows that matched a conflicting key with orange
-            conflict_key_set = set(conflict_keys.index)
-            for idx in df_hub[df_hub['RTA Address'].notna()].index:
-                key = df_hub.loc[idx, '_k_exact']
-                if key in conflict_key_set and df_hub.loc[idx, '_match_type'] == 'exact':
-                    df_hub.loc[idx, '_match_type'] = 'conflict'
-
-            # Pass 5: street-only (no postal code) → RED (opt-in only)
-            if not enable_no_pc:
-                st.info("Risky matching (street-only, no postal code) is disabled. "
-                        "Enable the checkbox above to include these matches.")
-
-            r_lookup_addr = {}
-            r_lookup_status_map = {}
-            r_lookup_addr_stripped = {}
-            r_lookup_status_stripped = {}
-            for i in range(len(df_rta)):
-                addr_val = df_rta.iloc[i]['_rta_full']
-                status_val = str(df_rta.iloc[i].get(rta_status_col, ''))
-                for st_key in [df_rta.iloc[i]['_street'], df_rta.iloc[i]['_street_canon']]:
-                    if st_key and st_key not in r_lookup_addr:
-                        r_lookup_addr[st_key] = addr_val
-                        r_lookup_status_map[st_key] = status_val
-                for st_key in [strip_direction(df_rta.iloc[i]['_street']), strip_direction(df_rta.iloc[i]['_street_canon'])]:
-                    if st_key and st_key not in r_lookup_addr_stripped:
-                        r_lookup_addr_stripped[st_key] = addr_val
-                        r_lookup_status_stripped[st_key] = status_val
-
-            if enable_no_pc:
-                unmatched = df_hub['RTA Address'].isna()
-                for idx in df_hub[unmatched].index:
-                    h_st = df_hub.loc[idx, '_street']
-                    h_st_canon = df_hub.loc[idx, '_street_canon']
-                    for lookup_a, lookup_s, key in [
-                        (r_lookup_addr, r_lookup_status_map, h_st),
-                        (r_lookup_addr, r_lookup_status_map, h_st_canon),
-                        (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st)),
-                        (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st_canon)),
-                    ]:
-                        if key in lookup_a:
-                            df_hub.loc[idx, 'RTA Address'] = lookup_a[key]
-                            df_hub.loc[idx, 'RTA Status'] = lookup_s.get(key, '')
-                            df_hub.loc[idx, '_match_type'] = 'no_pc'
-                            break
-
-            # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
-            matched_hub_keys = set()
-            key_cols_list = ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']
-            for key_col in key_cols_list:
-                matched_rows = df_hub[df_hub['RTA Address'].notna()]
-                matched_hub_keys.update(matched_rows[key_col].dropna().unique())
-
-            def rta_in_hubspot(row):
-                for key_col in key_cols_list:
-                    if row[key_col] in matched_hub_keys:
-                        return 'Yes'
-                return 'No'
-
-            df_rta['In Hubspot'] = df_rta.apply(rta_in_hubspot, axis=1)
-            rta_in_hub = (df_rta['In Hubspot'] == 'Yes').sum()
-            rta_not_in_hub = (df_rta['In Hubspot'] == 'No').sum()
-
-            # Stats
-            exact_count = (df_hub['_match_type'] == 'exact').sum()
-            yellow_count = df_hub['_match_type'].isin(['fuzzy', 'direction_strip']).sum()
-            orange_count = (df_hub['_match_type'] == 'conflict').sum()
-            red_count = (df_hub['_match_type'] == 'no_pc').sum()
-            hub_matched = df_hub['RTA Address'].notna().sum()
-            hub_unmatched = len(df_hub) - hub_matched
-
-            # ── Dashboard ──
-            st.markdown("---")
-            st.subheader("📊 Dashboard")
-
-            # Row 1: Side-by-side overview
-            d1, d2 = st.columns(2)
-            with d1:
-                st.markdown("**Hubspot**")
-                h1, h2, h3 = st.columns(3)
-                h1.metric("Total", len(df_hub))
-                h2.metric("Matched", hub_matched)
-                h3.metric("Unmatched", hub_unmatched)
-            with d2:
-                st.markdown("**RTA**")
-                r1, r2, r3 = st.columns(3)
-                r1.metric("Total", len(df_rta))
-                r2.metric("In Hubspot", rta_in_hub)
-                r3.metric("Not in Hubspot", rta_not_in_hub)
-
-            # Explain the difference
-            if hub_matched != rta_in_hub:
-                diff = hub_matched - rta_in_hub
-                st.info(f"**Why {hub_matched} vs {rta_in_hub}?** — "
-                        f"{diff} Hubspot row(s) map to the same RTA address "
-                        f"(duplicate Hubspot entries pointing to one RTA record).")
-
-            # Row 2: Match type breakdown
-            st.markdown("**Match breakdown:**")
-            b1, b2, b3, b4 = st.columns(4)
-            b1.metric("⬜ Exact", exact_count)
-            b2.metric("🟨 Fuzzy", yellow_count)
-            b3.metric("🟧 Conflict", orange_count)
-            b4.metric("🟥 Risky (no PC)", red_count)
-
-            # Show special matches
-            special = df_hub[df_hub['_match_type'].isin(['fuzzy', 'direction_strip', 'no_pc', 'conflict'])][
-                [hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status', '_match_type']
-            ].copy()
-            special.columns = ['Street Address', 'Postal Code', 'RTA Address', 'RTA Status', 'Match Type']
-
-            if len(special) > 0:
-                st.markdown("**Flagged matches for review:**")
-
-                def highlight_match_type(row):
-                    colors = {
-                        'no_pc': '#FF6666',
-                        'conflict': '#FFA500',
-                        'fuzzy': '#FFFF00',
-                        'direction_strip': '#FFFF00',
-                    }
-                    bg = colors.get(row['Match Type'], '#FFFFFF')
-                    return [f'background-color: {bg}'] * len(row)
-
-                st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
-
-            # RTA not in Hubspot detail
-            if rta_not_in_hub > 0:
-                st.markdown(f"**{rta_not_in_hub} RTA addresses not in Hubspot** — "
-                            "marked 🟪 purple in the RTA sheet for Redrabbit update.")
-                rta_not_matched = df_rta[df_rta['In Hubspot'] == 'No'][
-                    [rta_addr_no_col, rta_street_col, rta_locality_col, rta_pc_col, rta_status_col]
-                ].head(20)
-                st.dataframe(rta_not_matched, use_container_width=True)
-                if rta_not_in_hub > 20:
-                    st.caption(f"Showing first 20 of {rta_not_in_hub}. Full list in the downloaded Excel.")
-
-            # Preview output
-            preview = df_hub[[hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status']].head(20)
-            st.markdown("**Hubspot output preview (first 20 rows):**")
-            st.dataframe(preview, use_container_width=True)
-
-            # ── Save to Excel with TWO sheets: Hubspot + RTA ──
-            match_type = df_hub['_match_type'].copy()
-            df_hub_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
-            df_rta_out = df_rta.drop(columns=[c for c in df_rta.columns if c.startswith('_')])
-
-            df_hub_out = sanitize_dataframe(df_hub_out)
-            df_rta_out = sanitize_dataframe(df_rta_out)
-
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_hub_out.to_excel(writer, sheet_name='Hubspot', index=False)
-                df_rta_out.to_excel(writer, sheet_name='RTA', index=False)
-            buffer.seek(0)
-
-            wb = load_workbook(buffer)
-
-            # ── Color Hubspot sheet ──
-            ws_hub = wb['Hubspot']
-            rta_addr_col_idx = None
-            rta_status_col_idx = None
-            for cell in ws_hub[1]:
-                if cell.value == 'RTA Address':
-                    rta_addr_col_idx = cell.column
-                elif cell.value == 'RTA Status':
-                    rta_status_col_idx = cell.column
-
-            yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
-            red_fill = PatternFill(start_color='FF6666', end_color='FF6666', fill_type='solid')
-            orange_fill = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
-
-            for i, mt in enumerate(match_type):
-                if mt in ('fuzzy', 'direction_strip'):
-                    fill = yellow_fill
-                elif mt == 'no_pc':
-                    fill = red_fill
-                elif mt == 'conflict':
-                    fill = orange_fill
-                else:
-                    continue
-                if rta_addr_col_idx:
-                    ws_hub.cell(row=i+2, column=rta_addr_col_idx).fill = fill
-                if rta_status_col_idx:
-                    ws_hub.cell(row=i+2, column=rta_status_col_idx).fill = fill
-
-            # ── Color RTA sheet: highlight "Not in Hubspot" rows ──
-            ws_rta = wb['RTA']
-            purple_fill = PatternFill(start_color='D8B4FE', end_color='D8B4FE', fill_type='solid')
-
-            in_hub_col_idx = None
-            for cell in ws_rta[1]:
-                if cell.value == 'In Hubspot':
-                    in_hub_col_idx = cell.column
-                    break
-
-            if in_hub_col_idx:
-                for row_idx in range(2, ws_rta.max_row + 1):
-                    cell = ws_rta.cell(row=row_idx, column=in_hub_col_idx)
-                    if cell.value == 'No':
-                        for col_idx in range(1, ws_rta.max_column + 1):
-                            ws_rta.cell(row=row_idx, column=col_idx).fill = purple_fill
-
-            out_buffer = io.BytesIO()
-            wb.save(out_buffer)
-            out_buffer.seek(0)
-
-            st.download_button(
-                label="📥 Download color-coded Excel (Hubspot + RTA sheets)",
-                data=out_buffer,
-                file_name="hubspot_rta_matched_output.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
+            hub_street_col = st.selectbox(
+                "Street Address column",
+                hub_cols,
+                index=hub_cols.index('Street Address') if 'Street Address' in hub_cols else 0,
+                key='hub_street'
+            )
+            hub_pc_col = st.selectbox(
+                "Postal Code column",
+                hub_cols,
+                index=hub_cols.index('Postal Code') if 'Postal Code' in hub_cols else 0,
+                key='hub_pc'
             )
 
-            st.markdown("""
-            ---
-            **Color legend:**
+        # ── RTA column config ──
+        with cfg2:
+            st.subheader("RTA Columns")
+            st.dataframe(df_rta.head(5), use_container_width=True)
+            rta_cols = df_rta.columns.tolist()
 
-            **Hubspot sheet:**
-            - ⬜ **White** — Exact match (street + postal code)
-            - 🟨 **Yellow** — Fuzzy match (name alias, direction stripped, spelling variant)
-            - 🟧 **Orange** — Exact match but RTA has conflicting statuses for this address
-            - 🟥 **Red** — Street matched but postal codes differ — manual verification needed
+            st.markdown("**Address components** (will be combined for matching)")
+            rta_addr_no_col = st.selectbox(
+                "Address Number column",
+                rta_cols,
+                index=rta_cols.index('AddressNo') if 'AddressNo' in rta_cols else 0,
+                key='rta_addr_no'
+            )
+            rta_street_col = st.selectbox(
+                "Street Name column",
+                rta_cols,
+                index=rta_cols.index('StreetName') if 'StreetName' in rta_cols else 0,
+                key='rta_street'
+            )
+            rta_locality_col = st.selectbox(
+                "Locality / City column",
+                rta_cols,
+                index=rta_cols.index('Locality') if 'Locality' in rta_cols else 0,
+                key='rta_locality'
+            )
+            rta_pc_col = st.selectbox(
+                "Postal Code column",
+                rta_cols,
+                index=rta_cols.index('PostalCode') if 'PostalCode' in rta_cols else 0,
+                key='rta_pc'
+            )
+            rta_status_col = st.selectbox(
+                "RTA Status column (to bring into output)",
+                rta_cols,
+                index=rta_cols.index('RTA Status') if 'RTA Status' in rta_cols else len(rta_cols)-1,
+                key='rta_status'
+            )
 
-            **RTA sheet:**
-            - 🟪 **Purple** — NOT in Hubspot (needs Redrabbit update)
-            - ⬜ **White** — Matched to at least one Hubspot record
-            """)
+        # ── Run matching ──
+        st.markdown("---")
+        enable_no_pc = st.checkbox(
+            "Enable risky matching (street-only, ignore postal code mismatch)",
+            value=False,
+            help="When enabled, addresses that match on street but have different postal codes will be "
+                 "included in the output (marked red). When disabled, only postal-code-verified matches are exported."
+        )
+        if st.button("🔍 Run Address Matching", type="primary", use_container_width=True):
+            with st.spinner("Matching addresses..."):
 
-elif hub_file or rta_file:
-    st.info("Please upload both files to proceed.")
+                canonical_map = dict(st.session_state.aliases)
+
+                # Build RTA combined full address: "AddressNo StreetName Locality PostalCode"
+                df_rta['_rta_full'] = (
+                    df_rta[rta_addr_no_col].fillna('').astype(str).str.strip() + ' ' +
+                    df_rta[rta_street_col].fillna('').astype(str).str.strip() + ' ' +
+                    df_rta[rta_locality_col].fillna('').astype(str).str.strip() + ' ' +
+                    df_rta[rta_pc_col].fillna('').astype(str).str.strip()
+                ).str.strip()
+
+                # Normalize Hubspot
+                df_hub['_street'] = df_hub[hub_street_col].fillna('').apply(normalize)
+                df_hub['_street_canon'] = df_hub['_street'].apply(lambda s: apply_canonical(s, canonical_map))
+                df_hub['_pc'] = df_hub[hub_pc_col].fillna('').apply(norm_pc)
+
+                # Normalize RTA: combine AddressNo + StreetName for matching key
+                df_rta['_street'] = (
+                    df_rta[rta_addr_no_col].fillna('').astype(str) + ' ' +
+                    df_rta[rta_street_col].fillna('')
+                ).apply(normalize)
+                df_rta['_street_canon'] = df_rta['_street'].apply(lambda s: apply_canonical(s, canonical_map))
+                df_rta['_pc'] = df_rta[rta_pc_col].fillna('').apply(norm_pc)
+
+                # Build key variants
+                for df in [df_hub, df_rta]:
+                    df['_k_exact']     = df['_street']       + '|' + df['_pc']
+                    df['_k_dir']       = df['_street'].apply(strip_direction) + '|' + df['_pc']
+                    df['_k_canon']     = df['_street_canon']  + '|' + df['_pc']
+                    df['_k_canon_dir'] = df['_street_canon'].apply(strip_direction) + '|' + df['_pc']
+                    # QA-03: Unit-stripped keys (97U2 PIONEER RD -> 97 PIONEER RD)
+                    df['_k_unit']      = df['_street'].apply(strip_unit) + '|' + df['_pc']
+                    df['_k_unit_dir']  = df['_street'].apply(strip_unit).apply(strip_direction) + '|' + df['_pc']
+
+                # MED-1: Detect duplicate keys with conflicting statuses
+                dup_check = df_rta.groupby('_k_exact')[rta_status_col].nunique()
+                conflict_keys = dup_check[dup_check > 1]
+                if len(conflict_keys) > 0:
+                    st.warning(f"**{len(conflict_keys)} RTA address(es) have conflicting statuses.** "
+                               f"First match will be used. Review these in the RTA data:")
+                    conflict_detail = []
+                    for key in conflict_keys.index[:20]:  # show max 20
+                        rows = df_rta[df_rta['_k_exact'] == key][[rta_addr_no_col, rta_street_col, rta_pc_col, rta_status_col]]
+                        for _, r in rows.iterrows():
+                            conflict_detail.append({
+                                'Address': f"{r[rta_addr_no_col]} {r[rta_street_col]}",
+                                'PostalCode': r[rta_pc_col],
+                                'Status': r[rta_status_col],
+                                'Key': key,
+                            })
+                    st.dataframe(pd.DataFrame(conflict_detail), use_container_width=True)
+
+                # Build lookups: key -> (rta_full_address, rta_status) as separate Series
+                # For conflicting keys, concatenate ALL addresses and statuses
+                conflict_key_set = set(conflict_keys.index)
+                conflict_addr_map = {}
+                conflict_status_map = {}
+                for key in conflict_key_set:
+                    rows = df_rta[df_rta['_k_exact'] == key]
+                    addrs = rows['_rta_full'].dropna().unique()
+                    statuses = rows[rta_status_col].dropna().unique()
+                    conflict_addr_map[key] = ' | '.join(str(a) for a in addrs)
+                    conflict_status_map[key] = ' | '.join(str(s) for s in statuses)
+
+                lookup_addr = {}
+                lookup_status = {}
+                for key_col in ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']:
+                    deduped = df_rta.drop_duplicates(subset=key_col).set_index(key_col)
+                    addr_series = deduped['_rta_full'].copy()
+                    status_series = deduped[rta_status_col].fillna('').astype(str).copy()
+                    # Override conflicting keys with all candidates
+                    for ck in conflict_key_set:
+                        if ck in addr_series.index:
+                            addr_series[ck] = f"CONFLICT: {conflict_addr_map[ck]}"
+                        if ck in status_series.index:
+                            status_series[ck] = f"CONFLICT: {conflict_status_map[ck]}"
+                    lookup_addr[key_col] = addr_series
+                    lookup_status[key_col] = status_series
+
+                # Initialize output columns
+                df_hub['RTA Address'] = pd.Series(dtype='object')
+                df_hub['RTA Status'] = pd.Series(dtype='object')
+                df_hub['_match_type'] = ''
+
+                passes = [
+                    ('_k_exact',     'exact'),
+                    ('_k_dir',       'direction_strip'),
+                    ('_k_canon',     'fuzzy'),
+                    ('_k_canon_dir', 'fuzzy'),
+                    ('_k_unit',      'fuzzy'),
+                    ('_k_unit_dir',  'fuzzy'),
+                ]
+
+                for key_col, mtype in passes:
+                    unmatched = df_hub['RTA Address'].isna()
+                    mapped_addr = df_hub.loc[unmatched, key_col].map(lookup_addr[key_col])
+                    mapped_status = df_hub.loc[unmatched, key_col].map(lookup_status[key_col])
+                    matched_mask = mapped_addr.notna()
+                    if matched_mask.any():
+                        df_hub.loc[mapped_addr[matched_mask].index, 'RTA Address'] = mapped_addr[matched_mask].values
+                        df_hub.loc[mapped_status[matched_mask].index, 'RTA Status'] = mapped_status[matched_mask].values
+                        newly_matched = unmatched & df_hub['RTA Address'].notna() & (df_hub['_match_type'] == '')
+                        df_hub.loc[newly_matched, '_match_type'] = mtype
+
+                # MED-1: Mark rows that matched a conflicting key with orange
+                conflict_key_set = set(conflict_keys.index)
+                for idx in df_hub[df_hub['RTA Address'].notna()].index:
+                    key = df_hub.loc[idx, '_k_exact']
+                    if key in conflict_key_set and df_hub.loc[idx, '_match_type'] == 'exact':
+                        df_hub.loc[idx, '_match_type'] = 'conflict'
+
+                # Pass 5: street-only (no postal code) → RED (opt-in only)
+                if not enable_no_pc:
+                    st.info("Risky matching (street-only, no postal code) is disabled. "
+                            "Enable the checkbox above to include these matches.")
+
+                r_lookup_addr = {}
+                r_lookup_status_map = {}
+                r_lookup_addr_stripped = {}
+                r_lookup_status_stripped = {}
+                for i in range(len(df_rta)):
+                    addr_val = df_rta.iloc[i]['_rta_full']
+                    status_val = str(df_rta.iloc[i].get(rta_status_col, ''))
+                    for st_key in [df_rta.iloc[i]['_street'], df_rta.iloc[i]['_street_canon']]:
+                        if st_key and st_key not in r_lookup_addr:
+                            r_lookup_addr[st_key] = addr_val
+                            r_lookup_status_map[st_key] = status_val
+                    for st_key in [strip_direction(df_rta.iloc[i]['_street']), strip_direction(df_rta.iloc[i]['_street_canon'])]:
+                        if st_key and st_key not in r_lookup_addr_stripped:
+                            r_lookup_addr_stripped[st_key] = addr_val
+                            r_lookup_status_stripped[st_key] = status_val
+
+                if enable_no_pc:
+                    unmatched = df_hub['RTA Address'].isna()
+                    for idx in df_hub[unmatched].index:
+                        h_st = df_hub.loc[idx, '_street']
+                        h_st_canon = df_hub.loc[idx, '_street_canon']
+                        for lookup_a, lookup_s, key in [
+                            (r_lookup_addr, r_lookup_status_map, h_st),
+                            (r_lookup_addr, r_lookup_status_map, h_st_canon),
+                            (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st)),
+                            (r_lookup_addr_stripped, r_lookup_status_stripped, strip_direction(h_st_canon)),
+                        ]:
+                            if key in lookup_a:
+                                df_hub.loc[idx, 'RTA Address'] = lookup_a[key]
+                                df_hub.loc[idx, 'RTA Status'] = lookup_s.get(key, '')
+                                df_hub.loc[idx, '_match_type'] = 'no_pc'
+                                break
+
+                # ── Reverse lookup: find RTA addresses NOT in Hubspot ──
+                matched_hub_keys = set()
+                key_cols_list = ['_k_exact', '_k_dir', '_k_canon', '_k_canon_dir', '_k_unit', '_k_unit_dir']
+                for key_col in key_cols_list:
+                    matched_rows = df_hub[df_hub['RTA Address'].notna()]
+                    matched_hub_keys.update(matched_rows[key_col].dropna().unique())
+
+                def rta_in_hubspot(row):
+                    for key_col in key_cols_list:
+                        if row[key_col] in matched_hub_keys:
+                            return 'Yes'
+                    return 'No'
+
+                df_rta['In Hubspot'] = df_rta.apply(rta_in_hubspot, axis=1)
+                rta_in_hub = (df_rta['In Hubspot'] == 'Yes').sum()
+                rta_not_in_hub = (df_rta['In Hubspot'] == 'No').sum()
+
+                # Stats
+                exact_count = (df_hub['_match_type'] == 'exact').sum()
+                yellow_count = df_hub['_match_type'].isin(['fuzzy', 'direction_strip']).sum()
+                orange_count = (df_hub['_match_type'] == 'conflict').sum()
+                red_count = (df_hub['_match_type'] == 'no_pc').sum()
+                hub_matched = df_hub['RTA Address'].notna().sum()
+                hub_unmatched = len(df_hub) - hub_matched
+
+                # ── Dashboard ──
+                st.markdown("---")
+                st.subheader("📊 Dashboard")
+
+                # Row 1: Side-by-side overview
+                d1, d2 = st.columns(2)
+                with d1:
+                    st.markdown("**Hubspot**")
+                    h1, h2, h3 = st.columns(3)
+                    h1.metric("Total", len(df_hub))
+                    h2.metric("Matched", hub_matched)
+                    h3.metric("Unmatched", hub_unmatched)
+                with d2:
+                    st.markdown("**RTA**")
+                    r1, r2, r3 = st.columns(3)
+                    r1.metric("Total", len(df_rta))
+                    r2.metric("In Hubspot", rta_in_hub)
+                    r3.metric("Not in Hubspot", rta_not_in_hub)
+
+                # Explain the difference
+                if hub_matched != rta_in_hub:
+                    diff = hub_matched - rta_in_hub
+                    st.info(f"**Why {hub_matched} vs {rta_in_hub}?** — "
+                            f"{diff} Hubspot row(s) map to the same RTA address "
+                            f"(duplicate Hubspot entries pointing to one RTA record).")
+
+                # Row 2: Match type breakdown
+                st.markdown("**Match breakdown:**")
+                b1, b2, b3, b4 = st.columns(4)
+                b1.metric("⬜ Exact", exact_count)
+                b2.metric("🟨 Fuzzy", yellow_count)
+                b3.metric("🟧 Conflict", orange_count)
+                b4.metric("🟥 Risky (no PC)", red_count)
+
+                # Show special matches
+                special = df_hub[df_hub['_match_type'].isin(['fuzzy', 'direction_strip', 'no_pc', 'conflict'])][
+                    [hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status', '_match_type']
+                ].copy()
+                special.columns = ['Street Address', 'Postal Code', 'RTA Address', 'RTA Status', 'Match Type']
+
+                if len(special) > 0:
+                    st.markdown("**Flagged matches for review:**")
+
+                    def highlight_match_type(row):
+                        colors = {
+                            'no_pc': '#FF6666',
+                            'conflict': '#FFA500',
+                            'fuzzy': '#FFFF00',
+                            'direction_strip': '#FFFF00',
+                        }
+                        bg = colors.get(row['Match Type'], '#FFFFFF')
+                        return [f'background-color: {bg}'] * len(row)
+
+                    st.dataframe(special.style.apply(highlight_match_type, axis=1), use_container_width=True)
+
+                # RTA not in Hubspot detail
+                if rta_not_in_hub > 0:
+                    st.markdown(f"**{rta_not_in_hub} RTA addresses not in Hubspot** — "
+                                "marked 🟪 purple in the RTA sheet for Redrabbit update.")
+                    rta_not_matched = df_rta[df_rta['In Hubspot'] == 'No'][
+                        [rta_addr_no_col, rta_street_col, rta_locality_col, rta_pc_col, rta_status_col]
+                    ].head(20)
+                    st.dataframe(rta_not_matched, use_container_width=True)
+                    if rta_not_in_hub > 20:
+                        st.caption(f"Showing first 20 of {rta_not_in_hub}. Full list in the downloaded Excel.")
+
+                # Preview output
+                preview = df_hub[[hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status']].head(20)
+                st.markdown("**Hubspot output preview (first 20 rows):**")
+                st.dataframe(preview, use_container_width=True)
+
+                # ── Save to Excel with TWO sheets: Hubspot + RTA ──
+                match_type = df_hub['_match_type'].copy()
+                df_hub_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
+                df_rta_out = df_rta.drop(columns=[c for c in df_rta.columns if c.startswith('_')])
+
+                df_hub_out = sanitize_dataframe(df_hub_out)
+                df_rta_out = sanitize_dataframe(df_rta_out)
+
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df_hub_out.to_excel(writer, sheet_name='Hubspot', index=False)
+                    df_rta_out.to_excel(writer, sheet_name='RTA', index=False)
+                buffer.seek(0)
+
+                wb = load_workbook(buffer)
+
+                # ── Color Hubspot sheet ──
+                ws_hub = wb['Hubspot']
+                rta_addr_col_idx = None
+                rta_status_col_idx = None
+                for cell in ws_hub[1]:
+                    if cell.value == 'RTA Address':
+                        rta_addr_col_idx = cell.column
+                    elif cell.value == 'RTA Status':
+                        rta_status_col_idx = cell.column
+
+                yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+                red_fill = PatternFill(start_color='FF6666', end_color='FF6666', fill_type='solid')
+                orange_fill = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
+
+                for i, mt in enumerate(match_type):
+                    if mt in ('fuzzy', 'direction_strip'):
+                        fill = yellow_fill
+                    elif mt == 'no_pc':
+                        fill = red_fill
+                    elif mt == 'conflict':
+                        fill = orange_fill
+                    else:
+                        continue
+                    if rta_addr_col_idx:
+                        ws_hub.cell(row=i+2, column=rta_addr_col_idx).fill = fill
+                    if rta_status_col_idx:
+                        ws_hub.cell(row=i+2, column=rta_status_col_idx).fill = fill
+
+                # ── Color RTA sheet: highlight "Not in Hubspot" rows ──
+                ws_rta = wb['RTA']
+                purple_fill = PatternFill(start_color='D8B4FE', end_color='D8B4FE', fill_type='solid')
+
+                in_hub_col_idx = None
+                for cell in ws_rta[1]:
+                    if cell.value == 'In Hubspot':
+                        in_hub_col_idx = cell.column
+                        break
+
+                if in_hub_col_idx:
+                    for row_idx in range(2, ws_rta.max_row + 1):
+                        cell = ws_rta.cell(row=row_idx, column=in_hub_col_idx)
+                        if cell.value == 'No':
+                            for col_idx in range(1, ws_rta.max_column + 1):
+                                ws_rta.cell(row=row_idx, column=col_idx).fill = purple_fill
+
+                out_buffer = io.BytesIO()
+                wb.save(out_buffer)
+                out_buffer.seek(0)
+
+                st.download_button(
+                    label="📥 Download color-coded Excel (Hubspot + RTA sheets)",
+                    data=out_buffer,
+                    file_name="hubspot_rta_matched_output.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+
+                st.markdown("""
+                ---
+                **Color legend:**
+
+                **Hubspot sheet:**
+                - ⬜ **White** — Exact match (street + postal code)
+                - 🟨 **Yellow** — Fuzzy match (name alias, direction stripped, spelling variant)
+                - 🟧 **Orange** — Exact match but RTA has conflicting statuses for this address
+                - 🟥 **Red** — Street matched but postal codes differ — manual verification needed
+
+                **RTA sheet:**
+                - 🟪 **Purple** — NOT in Hubspot (needs Redrabbit update)
+                - ⬜ **White** — Matched to at least one Hubspot record
+                """)
+
+    elif hub_file or rta_file:
+        st.info("Please upload both files to proceed.")
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                  SERVICE 2 — RTA STATUS COMPARE                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+else:
+    st.markdown("Upload an **Old RTA** file and a **New RTA** file. The app finds removed/added "
+                "addresses, status changes between the two snapshots, and conflicts within the new file.")
+
+    with st.expander("How does this work?"):
+        st.markdown("""
+### What it does
+This tool compares two snapshots of your RTA database — an **old** version and a **new** version — and reports four things:
+
+1. **Removed** — addresses that were in the old file but are gone in the new file
+2. **Added** — addresses that appeared in the new file
+3. **Status Changed** — same address present in both, but its RTA Status moved (e.g. *In Construction* → *RTA*)
+4. **Conflicts in New** — same address appearing more than once in the new file with different statuses
+
+### How to use
+1. **Upload** your old RTA file and new RTA file (Excel or CSV)
+2. **Select** the address columns (the same selection is used for both files — assumes identical format)
+3. **Click "Compare RTA Files"**
+4. **Review** the on-screen dashboard
+5. **Download** a multi-sheet color-coded Excel
+
+### Address matching
+Same normalization as the Address Matcher: case + abbreviations standardized, postal-code typos auto-corrected, alias map applied. Trailing direction (N/S/E/W) and unit suffixes (-U1) are stripped so minor format differences between the two files don't falsely show as add/remove.
+
+### Color legend
+- 🟪 **Purple** — Removed (in Old, not in New)
+- 🟦 **Blue** — Added (in New, not in Old)
+- 🟩 **Green** — Status changed: *In Construction* → *RTA* (forward progression)
+- 🟨 **Yellow** — Status changed: *RTA* → *In Construction* (regression — review)
+- 🟧 **Orange** — Conflict in New file (same address, multiple statuses)
+""")
+
+    # ── File uploads ──
+    st.markdown("---")
+    cmp_col1, cmp_col2 = st.columns(2)
+
+    with cmp_col1:
+        st.subheader("1. Old RTA File")
+        old_file = st.file_uploader("Upload Old RTA file (.xlsx / .csv)", type=['xlsx', 'csv'], key='old_rta')
+
+    with cmp_col2:
+        st.subheader("2. New RTA File")
+        new_file = st.file_uploader("Upload New RTA file (.xlsx / .csv)", type=['xlsx', 'csv'], key='new_rta')
+
+
+    if old_file and new_file:
+
+        # ── Load Old ──
+        old_result = load_file(old_file)
+        if isinstance(old_result[0], pd.ExcelFile):
+            old_xl = old_result[0]
+            old_sheets = old_result[1]
+            old_sheet = st.selectbox("Old RTA sheet", old_sheets, key='old_rta_sheet') if len(old_sheets) > 1 else old_sheets[0]
+            df_old = pd.read_excel(old_xl, sheet_name=old_sheet)
+        else:
+            df_old = old_result[0]
+
+        # ── Load New ──
+        new_result = load_file(new_file)
+        if isinstance(new_result[0], pd.ExcelFile):
+            new_xl = new_result[0]
+            new_sheets = new_result[1]
+            new_sheet = st.selectbox("New RTA sheet", new_sheets, key='new_rta_sheet') if len(new_sheets) > 1 else new_sheets[0]
+            df_new = pd.read_excel(new_xl, sheet_name=new_sheet)
+        else:
+            df_new = new_result[0]
+
+        # Row count guard
+        for label, df in [("Old", df_old), ("New", df_new)]:
+            if len(df) > MAX_UPLOAD_ROWS:
+                st.error(f"{label} RTA file has {len(df):,} rows. Maximum is {MAX_UPLOAD_ROWS:,}.")
+                st.stop()
+
+        st.markdown("---")
+        st.subheader("Column Mapping")
+        st.caption("Selected columns will be used for **both** files. If your old file uses different "
+                   "column names, please rename them before uploading.")
+
+        prev1, prev2 = st.columns(2)
+        with prev1:
+            st.markdown("**Old RTA preview:**")
+            st.dataframe(df_old.head(5), use_container_width=True)
+        with prev2:
+            st.markdown("**New RTA preview:**")
+            st.dataframe(df_new.head(5), use_container_width=True)
+
+        new_cols = df_new.columns.tolist()
+
+        cmp_addr_no_col = st.selectbox(
+            "Address Number column",
+            new_cols,
+            index=new_cols.index('AddressNo') if 'AddressNo' in new_cols else 0,
+            key='cmp_addr_no'
+        )
+        cmp_street_col = st.selectbox(
+            "Street Name column",
+            new_cols,
+            index=new_cols.index('StreetName') if 'StreetName' in new_cols else 0,
+            key='cmp_street'
+        )
+        cmp_locality_col = st.selectbox(
+            "Locality / City column",
+            new_cols,
+            index=new_cols.index('Locality') if 'Locality' in new_cols else 0,
+            key='cmp_locality'
+        )
+        cmp_pc_col = st.selectbox(
+            "Postal Code column",
+            new_cols,
+            index=new_cols.index('PostalCode') if 'PostalCode' in new_cols else 0,
+            key='cmp_pc'
+        )
+        cmp_status_col = st.selectbox(
+            "RTA Status column",
+            new_cols,
+            index=new_cols.index('RTA Status') if 'RTA Status' in new_cols else len(new_cols)-1,
+            key='cmp_status'
+        )
+
+        # Verify the old file actually has these columns
+        required_cols = [cmp_addr_no_col, cmp_street_col, cmp_locality_col, cmp_pc_col, cmp_status_col]
+        missing_in_old = [c for c in required_cols if c not in df_old.columns]
+        if missing_in_old:
+            st.error(f"Old RTA file is missing column(s): {missing_in_old}. "
+                     f"Please ensure both files have the same column names.")
+            st.stop()
+
+        st.markdown("---")
+        if st.button("🔍 Compare RTA Files", type="primary", use_container_width=True):
+            with st.spinner("Comparing..."):
+
+                canonical_map = dict(st.session_state.aliases)
+
+                # Build matching keys + normalized status for both files
+                for df in [df_old, df_new]:
+                    df['_full'] = (
+                        df[cmp_addr_no_col].fillna('').astype(str).str.strip() + ' ' +
+                        df[cmp_street_col].fillna('').astype(str).str.strip() + ' ' +
+                        df[cmp_locality_col].fillna('').astype(str).str.strip() + ' ' +
+                        df[cmp_pc_col].fillna('').astype(str).str.strip()
+                    ).str.strip()
+                    df['_street'] = (
+                        df[cmp_addr_no_col].fillna('').astype(str) + ' ' +
+                        df[cmp_street_col].fillna('')
+                    ).apply(normalize)
+                    df['_street_canon'] = df['_street'].apply(lambda s: apply_canonical(s, canonical_map))
+                    df['_pc'] = df[cmp_pc_col].fillna('').apply(norm_pc)
+                    df['_key'] = df['_street_canon'].apply(strip_direction).apply(strip_unit) + '|' + df['_pc']
+                    df['_status_norm'] = df[cmp_status_col].fillna('').astype(str).str.strip().str.upper()
+
+                # Conflicts within NEW file: same key, multiple distinct statuses
+                new_dup = df_new.groupby('_key')['_status_norm'].nunique()
+                conflict_keys = set(new_dup[new_dup > 1].index)
+                df_conflicts = df_new[df_new['_key'].isin(conflict_keys)][
+                    [cmp_addr_no_col, cmp_street_col, cmp_locality_col, cmp_pc_col, cmp_status_col]
+                ].copy()
+                if len(df_conflicts) > 0:
+                    df_conflicts = df_conflicts.sort_values(
+                        by=[cmp_street_col, cmp_addr_no_col, cmp_status_col]
+                    ).reset_index(drop=True)
+
+                # Build per-file key → first status maps
+                old_key_status = df_old.drop_duplicates(subset='_key').set_index('_key')['_status_norm'].to_dict()
+                new_key_status = df_new.drop_duplicates(subset='_key').set_index('_key')['_status_norm'].to_dict()
+
+                old_keys = set(old_key_status.keys()) - {''}  # drop blank-key rows
+                new_keys = set(new_key_status.keys()) - {''}
+
+                removed_keys = old_keys - new_keys
+                added_keys = new_keys - old_keys
+                common_keys = old_keys & new_keys
+
+                df_removed = df_old[df_old['_key'].isin(removed_keys)].drop_duplicates(subset='_key')[
+                    [cmp_addr_no_col, cmp_street_col, cmp_locality_col, cmp_pc_col, cmp_status_col]
+                ].sort_values(by=[cmp_street_col, cmp_addr_no_col]).reset_index(drop=True)
+
+                df_added = df_new[df_new['_key'].isin(added_keys)].drop_duplicates(subset='_key')[
+                    [cmp_addr_no_col, cmp_street_col, cmp_locality_col, cmp_pc_col, cmp_status_col]
+                ].sort_values(by=[cmp_street_col, cmp_addr_no_col]).reset_index(drop=True)
+
+                # Status changes among addresses present in both files
+                new_first_row_by_key = df_new.drop_duplicates(subset='_key').set_index('_key')
+                status_change_rows = []
+                for key in common_keys:
+                    old_s = old_key_status.get(key, '')
+                    new_s = new_key_status.get(key, '')
+                    if old_s != new_s:
+                        row = new_first_row_by_key.loc[key]
+                        status_change_rows.append({
+                            'Address Number': row[cmp_addr_no_col],
+                            'Street Name': row[cmp_street_col],
+                            'Locality': row[cmp_locality_col],
+                            'Postal Code': row[cmp_pc_col],
+                            'Old Status': old_s.title() if old_s else '',
+                            'New Status': new_s.title() if new_s else '',
+                        })
+                if status_change_rows:
+                    df_status_changed = pd.DataFrame(status_change_rows).sort_values(
+                        by=['Street Name', 'Address Number']
+                    ).reset_index(drop=True)
+                else:
+                    df_status_changed = pd.DataFrame(columns=[
+                        'Address Number', 'Street Name', 'Locality', 'Postal Code', 'Old Status', 'New Status'
+                    ])
+
+                # ── Dashboard ──
+                st.markdown("---")
+                st.subheader("📊 Dashboard")
+                d1, d2, d3, d4, d5 = st.columns(5)
+                d1.metric("Old RTA total", len(df_old))
+                d2.metric("New RTA total", len(df_new))
+                d3.metric("🟪 Removed", len(df_removed))
+                d4.metric("🟦 Added", len(df_added))
+                d5.metric("Status Changed", len(df_status_changed))
+
+                # Status-change colour breakdown
+                if len(df_status_changed) > 0:
+                    forward = df_status_changed[
+                        (df_status_changed['Old Status'].str.upper() == 'IN CONSTRUCTION') &
+                        (df_status_changed['New Status'].str.upper() == 'RTA')
+                    ]
+                    regress = df_status_changed[
+                        (df_status_changed['Old Status'].str.upper() == 'RTA') &
+                        (df_status_changed['New Status'].str.upper() == 'IN CONSTRUCTION')
+                    ]
+                    other = len(df_status_changed) - len(forward) - len(regress)
+                    sb1, sb2, sb3 = st.columns(3)
+                    sb1.metric("🟩 In Construction → RTA", len(forward))
+                    sb2.metric("🟨 RTA → In Construction", len(regress))
+                    sb3.metric("Other status changes", other)
+
+                if conflict_keys:
+                    st.warning(
+                        f"**🟧 {len(conflict_keys)} address(es) in the New file have conflicting statuses** "
+                        f"({len(df_conflicts)} rows total). See the *Conflicts in New* sheet for the full list."
+                    )
+
+                # ── On-screen tables ──
+                if len(df_removed) > 0:
+                    st.markdown(f"**🟪 Removed ({len(df_removed)}) — in Old, not in New**")
+                    st.dataframe(df_removed.head(20), use_container_width=True)
+                    if len(df_removed) > 20:
+                        st.caption(f"Showing first 20 of {len(df_removed)}. Full list in the downloaded Excel.")
+
+                if len(df_added) > 0:
+                    st.markdown(f"**🟦 Added ({len(df_added)}) — in New, not in Old**")
+                    st.dataframe(df_added.head(20), use_container_width=True)
+                    if len(df_added) > 20:
+                        st.caption(f"Showing first 20 of {len(df_added)}. Full list in the downloaded Excel.")
+
+                if len(df_status_changed) > 0:
+                    st.markdown(f"**Status Changed ({len(df_status_changed)})** — Old → New")
+
+                    def color_status_change(row):
+                        old_s = str(row['Old Status']).upper().strip()
+                        new_s = str(row['New Status']).upper().strip()
+                        if old_s == 'IN CONSTRUCTION' and new_s == 'RTA':
+                            return ['background-color: #86EFAC'] * len(row)  # green
+                        elif old_s == 'RTA' and new_s == 'IN CONSTRUCTION':
+                            return ['background-color: #FFFF00'] * len(row)  # yellow
+                        return [''] * len(row)
+
+                    st.dataframe(
+                        df_status_changed.head(50).style.apply(color_status_change, axis=1),
+                        use_container_width=True,
+                    )
+                    if len(df_status_changed) > 50:
+                        st.caption(f"Showing first 50 of {len(df_status_changed)}. Full list in the downloaded Excel.")
+
+                if len(df_conflicts) > 0:
+                    st.markdown(
+                        f"**🟧 Conflicts in New File ({len(conflict_keys)} addresses, {len(df_conflicts)} rows)**"
+                    )
+                    st.dataframe(df_conflicts.head(30), use_container_width=True)
+                    if len(df_conflicts) > 30:
+                        st.caption(f"Showing first 30 of {len(df_conflicts)}. Full list in the downloaded Excel.")
+
+                # ── Build multi-sheet Excel ──
+                df_dashboard = pd.DataFrame([
+                    ['Old RTA total rows', len(df_old)],
+                    ['New RTA total rows', len(df_new)],
+                    ['Removed (in Old, not in New)', len(df_removed)],
+                    ['Added (in New, not in Old)', len(df_added)],
+                    ['Status Changed (same address, different status)', len(df_status_changed)],
+                    ['  └─ In Construction → RTA',
+                     int(((df_status_changed['Old Status'].str.upper() == 'IN CONSTRUCTION') &
+                          (df_status_changed['New Status'].str.upper() == 'RTA')).sum()) if len(df_status_changed) > 0 else 0],
+                    ['  └─ RTA → In Construction',
+                     int(((df_status_changed['Old Status'].str.upper() == 'RTA') &
+                          (df_status_changed['New Status'].str.upper() == 'IN CONSTRUCTION')).sum()) if len(df_status_changed) > 0 else 0],
+                    ['Conflicts in New — unique addresses', len(conflict_keys)],
+                    ['Conflicts in New — total rows', len(df_conflicts)],
+                ], columns=['Metric', 'Value'])
+
+                df_old_out = df_old.drop(columns=[c for c in df_old.columns if c.startswith('_')])
+                df_new_out = df_new.drop(columns=[c for c in df_new.columns if c.startswith('_')])
+
+                df_dashboard_san = sanitize_dataframe(df_dashboard)
+                df_old_san = sanitize_dataframe(df_old_out)
+                df_new_san = sanitize_dataframe(df_new_out)
+                df_removed_san = sanitize_dataframe(df_removed)
+                df_added_san = sanitize_dataframe(df_added)
+                df_status_changed_san = sanitize_dataframe(df_status_changed)
+                df_conflicts_san = sanitize_dataframe(df_conflicts)
+
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df_dashboard_san.to_excel(writer, sheet_name='Dashboard', index=False)
+                    df_old_san.to_excel(writer, sheet_name='Old RTA', index=False)
+                    df_new_san.to_excel(writer, sheet_name='New RTA', index=False)
+                    df_removed_san.to_excel(writer, sheet_name='Removed', index=False)
+                    df_added_san.to_excel(writer, sheet_name='Added', index=False)
+                    df_status_changed_san.to_excel(writer, sheet_name='Status Changed', index=False)
+                    df_conflicts_san.to_excel(writer, sheet_name='Conflicts in New', index=False)
+                buffer.seek(0)
+
+                wb = load_workbook(buffer)
+
+                purple_fill = PatternFill(start_color='D8B4FE', end_color='D8B4FE', fill_type='solid')
+                blue_fill = PatternFill(start_color='BFDBFE', end_color='BFDBFE', fill_type='solid')
+                green_fill = PatternFill(start_color='86EFAC', end_color='86EFAC', fill_type='solid')
+                yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+                orange_fill = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
+
+                # Removed: purple
+                ws = wb['Removed']
+                for row_idx in range(2, ws.max_row + 1):
+                    for col_idx in range(1, ws.max_column + 1):
+                        ws.cell(row=row_idx, column=col_idx).fill = purple_fill
+
+                # Added: blue
+                ws = wb['Added']
+                for row_idx in range(2, ws.max_row + 1):
+                    for col_idx in range(1, ws.max_column + 1):
+                        ws.cell(row=row_idx, column=col_idx).fill = blue_fill
+
+                # Status Changed: green for forward, yellow for regression
+                ws = wb['Status Changed']
+                old_status_idx = None
+                new_status_idx = None
+                for cell in ws[1]:
+                    if cell.value == 'Old Status':
+                        old_status_idx = cell.column
+                    elif cell.value == 'New Status':
+                        new_status_idx = cell.column
+                if old_status_idx and new_status_idx:
+                    for row_idx in range(2, ws.max_row + 1):
+                        old_s = str(ws.cell(row=row_idx, column=old_status_idx).value or '').upper().strip()
+                        new_s = str(ws.cell(row=row_idx, column=new_status_idx).value or '').upper().strip()
+                        fill = None
+                        if old_s == 'IN CONSTRUCTION' and new_s == 'RTA':
+                            fill = green_fill
+                        elif old_s == 'RTA' and new_s == 'IN CONSTRUCTION':
+                            fill = yellow_fill
+                        if fill:
+                            for col_idx in range(1, ws.max_column + 1):
+                                ws.cell(row=row_idx, column=col_idx).fill = fill
+
+                # Conflicts: orange
+                ws = wb['Conflicts in New']
+                for row_idx in range(2, ws.max_row + 1):
+                    for col_idx in range(1, ws.max_column + 1):
+                        ws.cell(row=row_idx, column=col_idx).fill = orange_fill
+
+                out_buffer = io.BytesIO()
+                wb.save(out_buffer)
+                out_buffer.seek(0)
+
+                st.download_button(
+                    label="📥 Download RTA Comparison Excel (7 sheets)",
+                    data=out_buffer,
+                    file_name="rta_status_compare_output.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+
+                st.markdown("""
+                ---
+                **Sheets in the downloaded file:**
+                1. **Dashboard** — summary counts
+                2. **Old RTA** — your old file as uploaded
+                3. **New RTA** — your new file as uploaded
+                4. **Removed** 🟪 — in Old, not in New
+                5. **Added** 🟦 — in New, not in Old
+                6. **Status Changed** — 🟩 *In Construction → RTA*, 🟨 *RTA → In Construction*
+                7. **Conflicts in New** 🟧 — same address, multiple statuses in the new file
+                """)
+
+    elif old_file or new_file:
+        st.info("Please upload both files to proceed.")
+
 
 # ── Footer ──
 st.markdown("---")
