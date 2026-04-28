@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finel AI · Hubspot RTA</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+
+  <!-- finel.ai brand fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind v3 (CDN play). Inline config below remaps the blue scale and
+       font stack to the finel.ai palette so existing utilities (bg-blue-700,
+       font-sans, font-serif) pick up the brand without per-class surgery. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            serif: ['"Playfair Display"', 'ui-serif', 'Georgia', 'serif'],
+          },
+          colors: {
+            blue: {
+              50:  '#e5f7ff',
+              100: '#ccefff',
+              200: '#99dfff',
+              300: '#66cfff',
+              400: '#33bfff',
+              500: '#00acff',
+              600: '#00acff',
+              700: '#008ecc',
+              800: '#007199',
+              900: '#005366',
+              950: '#003d4d',
+            },
+            brand: {
+              ink: '#0f172a',
+              accent: '#00B8F0',
+            },
+          },
+          backgroundImage: {
+            'brand-gradient': 'linear-gradient(135deg, #005366 0%, #008ecc 60%, #00acff 100%)',
+          },
+        },
+      },
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="bg-gray-50 font-sans" x-data="app()" x-init="init()">
+
+<!-- ══════════════════════════════════════════════════════════════
+     LOGIN
+══════════════════════════════════════════════════════════════ -->
+<div x-show="view === 'login'" class="min-h-screen flex items-center justify-center bg-brand-gradient">
+  <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+    <div class="text-center mb-8">
+      <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
+      <h1 class="text-3xl font-serif text-slate-900 leading-tight">Finel AI</h1>
+      <p class="text-gray-500 text-sm mt-1 tracking-wide uppercase">Hubspot RTA</p>
+    </div>
+
+    <form @submit.prevent="login()">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+        <input x-model="loginForm.username" type="text" required autocomplete="username"
+               class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+               placeholder="your username" />
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <input x-model="loginForm.password" type="password" required autocomplete="current-password"
+               class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+               placeholder="••••••••" />
+      </div>
+      <div x-show="authError" class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="authError"></div>
+      <button type="submit" :disabled="authLoading"
+              class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
+        <span x-show="!authLoading">Sign In</span>
+        <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Signing in...</span>
+      </button>
+    </form>
+    <p class="text-xs text-gray-400 text-center mt-4">Need an account? Contact your administrator.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     AUTHENTICATED SHELL
+══════════════════════════════════════════════════════════════ -->
+<div x-show="view !== 'login'" class="flex flex-col h-screen overflow-hidden">
+
+  <!-- Cross-app Finel strip — canonical pattern from finel-hub/brand/nav-example.tsx -->
+  <div class="w-full bg-slate-50 border-b border-slate-200 text-xs flex-shrink-0">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-8">
+      <a href="https://finel.ai" class="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition">
+        <img src="/static/favicon.svg" alt="Finel AI" class="h-4 w-4" />
+        <span class="font-semibold">Finel AI</span>
+      </a>
+      <nav class="flex items-center gap-4">
+        <a href="https://mortgage.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Mortgage</a>
+        <a href="https://books.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Books</a>
+        <a href="https://projects.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Projects</a>
+        <a href="#" class="text-blue-600 font-medium">RTA</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-56 bg-slate-900 text-white flex flex-col flex-shrink-0">
+      <div class="px-5 py-5 border-b border-slate-700">
+        <div class="flex items-center gap-2.5">
+          <img src="/static/favicon.svg" alt="Finel AI" class="w-9 h-9 rounded-lg" />
+          <span class="font-serif text-lg leading-tight">Finel AI<br>
+            <span class="text-xs text-blue-300 font-sans tracking-wide uppercase">Hubspot RTA</span>
+          </span>
+        </div>
+      </div>
+      <nav class="flex-1 py-4 space-y-1 px-3">
+        <button @click="view='matcher'"
+                :class="view==='matcher' ? 'bg-blue-700' : 'hover:bg-blue-800'"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-magnifying-glass-location w-4"></i> Address Matcher
+        </button>
+        <button @click="view='compare'"
+                :class="view==='compare' ? 'bg-blue-700' : 'hover:bg-blue-800'"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-code-compare w-4"></i> RTA Status Compare
+        </button>
+      </nav>
+      <div class="px-5 py-4 border-t border-slate-700">
+        <div class="text-xs text-blue-300 mb-1">Signed in as</div>
+        <div class="flex items-center gap-1.5">
+          <div class="text-sm font-medium truncate" x-text="user?.username"></div>
+          <span x-show="user?.is_admin" class="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded font-bold">Admin</span>
+        </div>
+        <button @click="logout()" class="mt-2 text-xs text-blue-300 hover:text-white transition">
+          <i class="fa-solid fa-right-from-bracket mr-1"></i> Sign out
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 overflow-auto bg-gray-50">
+
+      <!-- ── ADDRESS MATCHER ──────────────────────────────────────── -->
+      <div x-show="view==='matcher'" class="p-6 max-w-6xl mx-auto">
+        <div class="mb-6">
+          <h2 class="text-xl font-bold text-gray-800">Address Matcher</h2>
+          <p class="text-sm text-gray-500">Match Hubspot contacts against the RTA database. Bring back the RTA address + status onto each Hubspot row.</p>
+        </div>
+
+        <!-- File upload card -->
+        <div class="bg-white rounded-xl border p-6 mb-4">
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">1. Hubspot file</label>
+              <input type="file" accept=".xlsx,.csv" @change="matcher.onHubFile($event)"
+                     class="block w-full text-sm text-gray-700
+                            file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                            file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700
+                            hover:file:bg-blue-100" />
+              <div x-show="matcher.hubColumns.length > 0" class="text-xs text-green-600 mt-1">
+                <i class="fa-solid fa-check-circle"></i>
+                <span x-text="matcher.hubColumns.length + ' columns detected'"></span>
+              </div>
+              <div x-show="matcher.hubSheets && matcher.hubSheets.length > 1" class="mt-2">
+                <label class="block text-xs text-gray-600 mb-1">Sheet</label>
+                <select x-model="matcher.hubSheet"
+                        class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <template x-for="s in matcher.hubSheets" :key="s">
+                    <option :value="s" x-text="s"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">2. RTA file</label>
+              <input type="file" accept=".xlsx,.csv" @change="matcher.onRtaFile($event)"
+                     class="block w-full text-sm text-gray-700
+                            file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                            file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700
+                            hover:file:bg-blue-100" />
+              <div x-show="matcher.rtaColumns.length > 0" class="text-xs text-green-600 mt-1">
+                <i class="fa-solid fa-check-circle"></i>
+                <span x-text="matcher.rtaColumns.length + ' columns detected'"></span>
+              </div>
+              <div x-show="matcher.rtaSheets && matcher.rtaSheets.length > 1" class="mt-2">
+                <label class="block text-xs text-gray-600 mb-1">Sheet</label>
+                <select x-model="matcher.rtaSheet"
+                        class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <template x-for="s in matcher.rtaSheets" :key="s">
+                    <option :value="s" x-text="s"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column mapping -->
+        <div x-show="matcher.hubColumns.length > 0 && matcher.rtaColumns.length > 0"
+             class="bg-white rounded-xl border p-6 mb-4">
+          <h3 class="text-sm font-semibold text-gray-800 mb-3">Column mapping</h3>
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <p class="text-xs text-gray-500 mb-2">Hubspot</p>
+              <div class="space-y-2">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Street Address</label>
+                  <select x-model="matcher.colMap.hub_street_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.hubColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Postal Code</label>
+                  <select x-model="matcher.colMap.hub_pc_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.hubColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500 mb-2">RTA</p>
+              <div class="space-y-2">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Address Number</label>
+                  <select x-model="matcher.colMap.rta_addr_no_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.rtaColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Street Name</label>
+                  <select x-model="matcher.colMap.rta_street_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.rtaColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Locality / City</label>
+                  <select x-model="matcher.colMap.rta_locality_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.rtaColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">Postal Code</label>
+                  <select x-model="matcher.colMap.rta_pc_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.rtaColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-0.5">RTA Status</label>
+                  <select x-model="matcher.colMap.rta_status_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <template x-for="c in matcher.rtaColumns" :key="c"><option :value="c" x-text="c"></option></template>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 flex items-center gap-2">
+            <input type="checkbox" x-model="matcher.enableNoPc" id="enable-no-pc" class="rounded" />
+            <label for="enable-no-pc" class="text-xs text-gray-600">
+              Enable risky matching (street-only, ignore postal code mismatch — marked red)
+            </label>
+          </div>
+        </div>
+
+        <!-- Run button -->
+        <button x-show="matcher.hubFile && matcher.rtaFile"
+                @click="matcher.run()"
+                :disabled="matcher.running"
+                class="w-full bg-blue-700 text-white rounded-lg py-3 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition flex items-center justify-center gap-2 mb-4">
+          <span x-show="!matcher.running"><i class="fa-solid fa-magnifying-glass"></i> Run Address Matching</span>
+          <span x-show="matcher.running"><i class="fa-solid fa-spinner fa-spin"></i> Matching addresses...</span>
+        </button>
+
+        <div x-show="matcher.error" class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-4" x-text="matcher.error"></div>
+
+        <!-- Result dashboard -->
+        <div x-show="matcher.result" class="space-y-4">
+          <!-- Stats -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl border p-4">
+              <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Hubspot</p>
+              <div class="grid grid-cols-3 gap-3">
+                <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.hubspot_total"></div><div class="text-xs text-gray-500">Total</div></div>
+                <div><div class="text-2xl font-bold text-green-600" x-text="matcher.result?.stats.hubspot_matched"></div><div class="text-xs text-gray-500">Matched</div></div>
+                <div><div class="text-2xl font-bold text-amber-600" x-text="matcher.result?.stats.hubspot_unmatched"></div><div class="text-xs text-gray-500">Unmatched</div></div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl border p-4">
+              <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">RTA</p>
+              <div class="grid grid-cols-3 gap-3">
+                <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.rta_total"></div><div class="text-xs text-gray-500">Total</div></div>
+                <div><div class="text-2xl font-bold text-green-600" x-text="matcher.result?.stats.rta_in_hubspot"></div><div class="text-xs text-gray-500">In Hubspot</div></div>
+                <div><div class="text-2xl font-bold text-purple-600" x-text="matcher.result?.stats.rta_not_in_hubspot"></div><div class="text-xs text-gray-500">Not in Hubspot</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Match breakdown</p>
+            <div class="grid grid-cols-4 gap-4">
+              <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.exact"></div><div class="text-xs text-gray-500">⬜ Exact</div></div>
+              <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.fuzzy"></div><div class="text-xs text-gray-500">🟨 Fuzzy</div></div>
+              <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.conflict"></div><div class="text-xs text-gray-500">🟧 Conflict</div></div>
+              <div><div class="text-2xl font-bold text-gray-800" x-text="matcher.result?.stats.risky_no_pc"></div><div class="text-xs text-gray-500">🟥 Risky (no PC)</div></div>
+            </div>
+          </div>
+
+          <!-- Flagged matches -->
+          <div x-show="matcher.result?.flagged.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">Flagged matches for review</h4>
+            <div class="overflow-x-auto max-h-96 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Street Address</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Postal</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">RTA Address</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">RTA Status</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in matcher.result.flagged.slice(0, 200)" :key="i">
+                    <tr class="border-t" :class="'match-cell-' + row.match_type">
+                      <td class="px-2 py-1" x-text="row.street_address"></td>
+                      <td class="px-2 py-1" x-text="row.postal_code"></td>
+                      <td class="px-2 py-1" x-text="row.rta_address"></td>
+                      <td class="px-2 py-1" x-text="row.rta_status"></td>
+                      <td class="px-2 py-1 font-mono text-[10px]" x-text="row.match_type"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <p x-show="matcher.result?.flagged.length > 200" class="text-xs text-gray-500 mt-2">
+              Showing first 200 of <span x-text="matcher.result?.flagged.length"></span>. Full list in the downloaded Excel.
+            </p>
+          </div>
+
+          <!-- Conflicts -->
+          <div x-show="matcher.result?.conflicts.length > 0" class="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <h4 class="text-sm font-semibold text-orange-900 mb-2">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span x-text="matcher.result?.conflicts.length"></span> RTA address(es) have conflicting statuses
+            </h4>
+            <p class="text-xs text-orange-800 mb-3">All candidates are concatenated into the matched cell so you can review.</p>
+          </div>
+
+          <!-- Download -->
+          <button @click="matcher.download()"
+                  class="w-full bg-green-600 text-white rounded-lg py-3 font-semibold text-sm hover:bg-green-700 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-download"></i> Download color-coded Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- ── RTA STATUS COMPARE ───────────────────────────────────── -->
+      <div x-show="view==='compare'" class="p-6 max-w-6xl mx-auto">
+        <div class="mb-6">
+          <h2 class="text-xl font-bold text-gray-800">RTA Status Compare</h2>
+          <p class="text-sm text-gray-500">Compare two RTA snapshots — find what was added, removed, status-changed, or conflicting in the new file.</p>
+        </div>
+
+        <!-- File upload card -->
+        <div class="bg-white rounded-xl border p-6 mb-4">
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">1. Old RTA file</label>
+              <input type="file" accept=".xlsx,.csv" @change="compare.onOldFile($event)"
+                     class="block w-full text-sm text-gray-700
+                            file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                            file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700
+                            hover:file:bg-blue-100" />
+              <div x-show="compare.oldColumns.length > 0" class="text-xs text-green-600 mt-1">
+                <i class="fa-solid fa-check-circle"></i>
+                <span x-text="compare.oldColumns.length + ' columns detected'"></span>
+              </div>
+              <div x-show="compare.oldSheets && compare.oldSheets.length > 1" class="mt-2">
+                <label class="block text-xs text-gray-600 mb-1">Sheet</label>
+                <select x-model="compare.oldSheet" class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <template x-for="s in compare.oldSheets" :key="s"><option :value="s" x-text="s"></option></template>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">2. New RTA file</label>
+              <input type="file" accept=".xlsx,.csv" @change="compare.onNewFile($event)"
+                     class="block w-full text-sm text-gray-700
+                            file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                            file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700
+                            hover:file:bg-blue-100" />
+              <div x-show="compare.newColumns.length > 0" class="text-xs text-green-600 mt-1">
+                <i class="fa-solid fa-check-circle"></i>
+                <span x-text="compare.newColumns.length + ' columns detected'"></span>
+              </div>
+              <div x-show="compare.newSheets && compare.newSheets.length > 1" class="mt-2">
+                <label class="block text-xs text-gray-600 mb-1">Sheet</label>
+                <select x-model="compare.newSheet" class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <template x-for="s in compare.newSheets" :key="s"><option :value="s" x-text="s"></option></template>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column mapping -->
+        <div x-show="compare.newColumns.length > 0" class="bg-white rounded-xl border p-6 mb-4">
+          <h3 class="text-sm font-semibold text-gray-800 mb-1">Column mapping</h3>
+          <p class="text-xs text-gray-500 mb-3">Selected columns apply to both files (assumes identical schema).</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-gray-600 mb-0.5">Address Number</label>
+              <select x-model="compare.colMap.addr_no_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <template x-for="c in compare.newColumns" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600 mb-0.5">Street Name</label>
+              <select x-model="compare.colMap.street_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <template x-for="c in compare.newColumns" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600 mb-0.5">Locality / City</label>
+              <select x-model="compare.colMap.locality_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <template x-for="c in compare.newColumns" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600 mb-0.5">Postal Code</label>
+              <select x-model="compare.colMap.pc_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <template x-for="c in compare.newColumns" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs text-gray-600 mb-0.5">RTA Status</label>
+              <select x-model="compare.colMap.status_col" class="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <template x-for="c in compare.newColumns" :key="c"><option :value="c" x-text="c"></option></template>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Run button -->
+        <button x-show="compare.oldFile && compare.newFile"
+                @click="compare.run()"
+                :disabled="compare.running"
+                class="w-full bg-blue-700 text-white rounded-lg py-3 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition flex items-center justify-center gap-2 mb-4">
+          <span x-show="!compare.running"><i class="fa-solid fa-code-compare"></i> Compare RTA Files</span>
+          <span x-show="compare.running"><i class="fa-solid fa-spinner fa-spin"></i> Comparing...</span>
+        </button>
+
+        <div x-show="compare.error" class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-4" x-text="compare.error"></div>
+
+        <!-- Result dashboard -->
+        <div x-show="compare.result" class="space-y-4">
+          <!-- Top stats -->
+          <div class="grid grid-cols-5 gap-3">
+            <div class="bg-white rounded-xl border p-3 text-center">
+              <div class="text-xl font-bold text-gray-800" x-text="compare.result?.stats.old_total"></div>
+              <div class="text-[10px] text-gray-500 uppercase">Old total</div>
+            </div>
+            <div class="bg-white rounded-xl border p-3 text-center">
+              <div class="text-xl font-bold text-gray-800" x-text="compare.result?.stats.new_total"></div>
+              <div class="text-[10px] text-gray-500 uppercase">New total</div>
+            </div>
+            <div class="bg-white rounded-xl border p-3 text-center">
+              <div class="text-xl font-bold text-purple-600" x-text="compare.result?.stats.removed"></div>
+              <div class="text-[10px] text-gray-500 uppercase">🟪 Removed</div>
+            </div>
+            <div class="bg-white rounded-xl border p-3 text-center">
+              <div class="text-xl font-bold text-blue-600" x-text="compare.result?.stats.added"></div>
+              <div class="text-[10px] text-gray-500 uppercase">🟦 Added</div>
+            </div>
+            <div class="bg-white rounded-xl border p-3 text-center">
+              <div class="text-xl font-bold text-gray-800" x-text="compare.result?.stats.status_changed"></div>
+              <div class="text-[10px] text-gray-500 uppercase">Status Changed</div>
+            </div>
+          </div>
+
+          <!-- Status change colour breakdown -->
+          <div x-show="compare.result?.stats.status_changed > 0" class="grid grid-cols-3 gap-3">
+            <div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+              <div class="text-xl font-bold text-green-700" x-text="compare.result?.stats.in_construction_to_rta"></div>
+              <div class="text-[10px] text-green-700 uppercase">🟩 In Construction → RTA</div>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
+              <div class="text-xl font-bold text-yellow-700" x-text="compare.result?.stats.rta_to_in_construction"></div>
+              <div class="text-[10px] text-yellow-700 uppercase">🟨 RTA → In Construction</div>
+            </div>
+            <div class="bg-gray-50 border rounded-xl p-3 text-center">
+              <div class="text-xl font-bold text-gray-700" x-text="compare.result?.stats.other_status_changes"></div>
+              <div class="text-[10px] text-gray-500 uppercase">Other</div>
+            </div>
+          </div>
+
+          <!-- Conflicts warning -->
+          <div x-show="compare.result?.stats.conflict_addresses > 0"
+               class="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <h4 class="text-sm font-semibold text-orange-900 mb-1">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span x-text="compare.result?.stats.conflict_addresses"></span> address(es) in the New file have conflicting statuses
+              (<span x-text="compare.result?.stats.conflict_rows"></span> rows).
+            </h4>
+          </div>
+
+          <!-- Removed preview -->
+          <div x-show="compare.result?.removed_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">🟪 Removed (in Old, not in New)</h4>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <template x-for="k in (compare.result?.removed_preview[0] ? Object.keys(compare.result.removed_preview[0]) : [])" :key="k">
+                      <th class="text-left px-2 py-1.5 font-medium text-gray-600" x-text="k"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in compare.result.removed_preview" :key="i">
+                    <tr class="border-t">
+                      <template x-for="(v, k) in row" :key="k">
+                        <td class="px-2 py-1" x-text="v"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Added preview -->
+          <div x-show="compare.result?.added_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">🟦 Added (in New, not in Old)</h4>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <template x-for="k in (compare.result?.added_preview[0] ? Object.keys(compare.result.added_preview[0]) : [])" :key="k">
+                      <th class="text-left px-2 py-1.5 font-medium text-gray-600" x-text="k"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in compare.result.added_preview" :key="i">
+                    <tr class="border-t">
+                      <template x-for="(v, k) in row" :key="k">
+                        <td class="px-2 py-1" x-text="v"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Status changed preview -->
+          <div x-show="compare.result?.status_changed_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">Status Changed (Old → New)</h4>
+            <div class="overflow-x-auto max-h-96 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Address Number</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Street</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Locality</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Postal</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">Old Status</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-gray-600">New Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in compare.result.status_changed_preview" :key="i">
+                    <tr class="border-t" :class="statusChangeClass(row)">
+                      <td class="px-2 py-1" x-text="row['Address Number']"></td>
+                      <td class="px-2 py-1" x-text="row['Street Name']"></td>
+                      <td class="px-2 py-1" x-text="row['Locality']"></td>
+                      <td class="px-2 py-1" x-text="row['Postal Code']"></td>
+                      <td class="px-2 py-1" x-text="row['Old Status']"></td>
+                      <td class="px-2 py-1" x-text="row['New Status']"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Conflicts preview -->
+          <div x-show="compare.result?.conflicts_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">🟧 Conflicts in New File</h4>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <template x-for="k in (compare.result?.conflicts_preview[0] ? Object.keys(compare.result.conflicts_preview[0]) : [])" :key="k">
+                      <th class="text-left px-2 py-1.5 font-medium text-gray-600" x-text="k"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in compare.result.conflicts_preview" :key="i">
+                    <tr class="border-t">
+                      <template x-for="(v, k) in row" :key="k">
+                        <td class="px-2 py-1" x-text="v"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Download -->
+          <button @click="compare.download()"
+                  class="w-full bg-green-600 text-white rounded-lg py-3 font-semibold text-sm hover:bg-green-700 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-download"></i> Download RTA Comparison Excel (7 sheets)
+          </button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

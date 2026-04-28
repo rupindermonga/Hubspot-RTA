@@ -1,0 +1,49 @@
+/* finel.ai typography polish — pulled from finel-hub/brand/typography.css.
+   Applied on top of Tailwind v3 (CDN play) + the inline tailwind.config block
+   in index.html which carries the finel blue scale and font stack. */
+
+html {
+  font-size: 93.75%;            /* 15px base — tighter, more institutional feel */
+}
+
+h1 {
+  letter-spacing: -0.02em;
+  font-variant-numeric: lining-nums;
+}
+h2 {
+  letter-spacing: -0.015em;
+  font-variant-numeric: lining-nums;
+}
+h3, h4 {
+  letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums;
+}
+
+body {
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+p {
+  font-size: 0.9375rem;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Match-type colour swatches used in the flagged table */
+.match-cell-fuzzy,
+.match-cell-direction_strip { background: #FFFF00; }
+.match-cell-conflict        { background: #FFA500; }
+.match-cell-no_pc           { background: #FF6666; }
+
+/* Status-change colours used in the compare view */
+.status-cell-forward { background: #86EFAC; }   /* In Construction → RTA */
+.status-cell-regress { background: #FFFF00; }   /* RTA → In Construction */
