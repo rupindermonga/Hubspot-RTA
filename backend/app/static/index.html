@@ -56,11 +56,357 @@
 <body class="bg-gray-50 font-sans" x-data="app()" x-init="init()">
 
 <!-- ══════════════════════════════════════════════════════════════
+     LANDING  (public marketing — default for unauthenticated users)
+══════════════════════════════════════════════════════════════ -->
+<div x-show="view === 'landing'" class="min-h-screen bg-white font-sans">
+
+  <!-- FinelAppNav: canonical source finel-hub/brand/nav-example.tsx -->
+  <nav class="bg-white border-b border-gray-100 sticky top-0 z-50"
+       x-data="{ fnMobileOpen: false, fnServicesOpen: false }">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-20 items-center">
+
+        <!-- Logo + app sub-label -->
+        <a href="https://finel.ai" class="flex-shrink-0 flex items-center gap-2.5 group">
+          <img src="/static/favicon.svg" alt="Finel AI" class="h-10 w-10" />
+          <div class="flex flex-col leading-none">
+            <span class="font-bold text-2xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">Finel AI</span>
+            <span class="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mt-0.5">Hubspot RTA</span>
+          </div>
+        </a>
+
+        <!-- Desktop links -->
+        <div class="hidden lg:flex items-center space-x-8">
+          <a href="https://finel.ai/" class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">Home</a>
+
+          <!-- Services dropdown -->
+          <div class="relative" @mouseenter="fnServicesOpen=true" @mouseleave="fnServicesOpen=false">
+            <button class="flex items-center gap-1 text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Services
+              <svg class="w-4 h-4 transition-transform" :class="fnServicesOpen ? 'rotate-180' : ''"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div x-show="fnServicesOpen" x-transition
+                 class="absolute top-full left-1/2 -translate-x-1/2 pt-3 z-50 w-56">
+              <div class="bg-white rounded-xl shadow-xl border border-gray-100 py-2">
+                <a href="https://finel.ai/tax"        class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Finel Tax</a>
+                <a href="https://finel.ai/mortgage"   class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Finel Mortgage</a>
+                <a href="https://finel.ai/wealth"     class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Wealth Management</a>
+                <a href="https://finel.ai/finconsult" class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Financial Consulting</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Tools — active pill -->
+          <a href="https://finel.ai/aitools"
+             class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-slate-900 text-white text-base font-semibold hover:bg-slate-700 transition-colors">
+            AI Tools
+          </a>
+
+          <a href="https://finel.ai/about"     class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">About Us</a>
+          <a href="https://finel.ai/resources" class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">Resources</a>
+
+          <a href="https://finel.ai/contact"
+             class="px-5 py-2.5 rounded-lg bg-slate-900 text-white font-semibold text-base hover:bg-slate-700 transition-colors whitespace-nowrap">
+            Book a Consultation
+          </a>
+        </div>
+
+        <!-- Mobile hamburger -->
+        <button class="lg:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+                @click="fnMobileOpen=!fnMobileOpen">
+          <svg x-show="!fnMobileOpen" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+          <svg x-show="fnMobileOpen" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Mobile menu -->
+    <div x-show="fnMobileOpen" x-transition class="lg:hidden border-t border-gray-100 bg-white px-4 pb-4 pt-2 space-y-1">
+      <a href="https://finel.ai/"          class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">Home</a>
+      <div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">Services</div>
+      <a href="https://finel.ai/tax"        class="block px-3 py-2.5 pl-6 rounded-lg text-sm font-medium text-slate-600 hover:bg-gray-50">Finel Tax</a>
+      <a href="https://finel.ai/mortgage"   class="block px-3 py-2.5 pl-6 rounded-lg text-sm font-medium text-slate-600 hover:bg-gray-50">Finel Mortgage</a>
+      <a href="https://finel.ai/wealth"     class="block px-3 py-2.5 pl-6 rounded-lg text-sm font-medium text-slate-600 hover:bg-gray-50">Wealth Management</a>
+      <a href="https://finel.ai/finconsult" class="block px-3 py-2.5 pl-6 rounded-lg text-sm font-medium text-slate-600 hover:bg-gray-50">Financial Consulting</a>
+      <a href="https://finel.ai/aitools"    class="block px-3 py-2.5 rounded-lg text-base font-medium text-blue-600 bg-blue-50">AI Tools</a>
+      <a href="https://finel.ai/about"      class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">About Us</a>
+      <a href="https://finel.ai/resources"  class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">Resources</a>
+      <a href="#how-it-works" @click="fnMobileOpen=false" class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">How it works</a>
+      <button @click="view='login'; fnMobileOpen=false"
+              class="block mt-2 w-full px-3 py-2.5 rounded-lg text-base font-semibold text-center bg-slate-900 text-white">
+        Sign in
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Hero ───────────────────────────────────────────────────── -->
+  <section class="pt-20 pb-12 px-6 text-center bg-white">
+    <div class="max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide mb-6">
+        <i class="fa-solid fa-shield-halved"></i> Encrypted at rest · Per-user isolation
+      </div>
+      <h1 class="font-serif text-5xl sm:text-6xl lg:text-7xl text-slate-900 leading-[1.05] mb-6">
+        RTA status on every<br class="hidden sm:inline" />
+        Hubspot contact.
+      </h1>
+      <p class="text-lg sm:text-xl text-slate-500 leading-relaxed max-w-xl mx-auto mb-10">
+        Upload your Hubspot export and your RTA snapshot. The matcher links them in seconds, flags conflicts and mismatches, and returns a colour-coded Excel — ready for Redrabbit.
+      </p>
+      <div class="flex flex-wrap gap-3 justify-center">
+        <button @click="view='login'"
+                class="bg-blue-700 text-white rounded-xl px-8 py-3.5 font-semibold text-base hover:bg-blue-800 transition shadow-lg shadow-blue-200">
+          Sign in to start
+        </button>
+        <a href="#how-it-works"
+           class="border border-slate-200 text-slate-700 rounded-xl px-8 py-3.5 font-semibold text-base hover:border-slate-400 transition">
+          How it works
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Product demo: the matched output, live in HTML ─────────── -->
+  <section class="py-8 px-6">
+    <div class="max-w-5xl mx-auto">
+      <!-- Card shadow + polish matching the SaaS screenshot aesthetic -->
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 overflow-hidden">
+        <!-- Fake browser chrome bar -->
+        <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-red-400"></div>
+          <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+          <div class="w-3 h-3 rounded-full bg-green-400"></div>
+          <div class="ml-4 bg-white border border-slate-200 rounded-md px-3 py-1 text-xs text-slate-400 flex-1 max-w-xs">
+            hubspot_rta_matched_output.xlsx
+          </div>
+          <span class="ml-auto text-xs text-slate-400 hidden sm:inline">Hubspot sheet</span>
+        </div>
+        <!-- Match result table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="text-left px-4 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Name</th>
+                <th class="text-left px-4 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Street Address</th>
+                <th class="text-left px-4 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Postal</th>
+                <th class="text-left px-4 py-2.5 font-semibold text-slate-600 whitespace-nowrap">RTA Address</th>
+                <th class="text-left px-4 py-2.5 font-semibold text-slate-600 whitespace-nowrap">RTA Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="px-4 py-2 text-slate-700">Alice Patel</td>
+                <td class="px-4 py-2 text-slate-700">123 Main Street</td>
+                <td class="px-4 py-2 text-slate-500">P0M 1B0</td>
+                <td class="px-4 py-2 text-slate-700">123 Main St, Sudbury P0M 1B0</td>
+                <td class="px-4 py-2 text-green-700 font-semibold">RTA</td>
+              </tr>
+              <tr style="background:#FFFDE7">
+                <td class="px-4 py-2 text-slate-700">Bob Kaur</td>
+                <td class="px-4 py-2 text-slate-700">97 Pioneer Rd</td>
+                <td class="px-4 py-2 text-slate-500">P0M 1C0</td>
+                <td class="px-4 py-2 text-slate-700" style="background:#FFFF00">97-U2 Pioneer Rd P0M 1C0</td>
+                <td class="px-4 py-2 text-amber-700 font-semibold" style="background:#FFFF00">In Construction</td>
+              </tr>
+              <tr style="background:#FFF8F0">
+                <td class="px-4 py-2 text-slate-700">Carol Singh</td>
+                <td class="px-4 py-2 text-slate-700">500 Findlay Hill Rd</td>
+                <td class="px-4 py-2 text-slate-500">P0K 2A0</td>
+                <td class="px-4 py-2" style="background:#FFA500">CONFLICT: 500 Findlay Rd | 500 Findlay Rd E</td>
+                <td class="px-4 py-2 font-semibold" style="background:#FFA500">CONFLICT: RTA | In Construction</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2 text-slate-700">Dave Tran</td>
+                <td class="px-4 py-2 text-slate-700">28 Alton Lane East</td>
+                <td class="px-4 py-2 text-slate-500">P0K 1X0</td>
+                <td class="px-4 py-2 text-slate-700" style="background:#FFFF00">28 Alton Lane E P0K 1X0</td>
+                <td class="px-4 py-2 text-green-700 font-semibold" style="background:#FFFF00">RTA</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2 text-slate-700">Emily Chen</td>
+                <td class="px-4 py-2 text-slate-700">12 Panache Shore Rd</td>
+                <td class="px-4 py-2 text-slate-500">P0K 3B0</td>
+                <td class="px-4 py-2 text-slate-700" style="background:#FFFF00">12 Panache Nshore Rd P0K 3B0</td>
+                <td class="px-4 py-2 text-green-700 font-semibold" style="background:#FFFF00">RTA</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Legend strip -->
+        <div class="bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex flex-wrap gap-4 text-xs text-slate-500">
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded bg-white border border-slate-200"></span>Exact match</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded" style="background:#FFFF00"></span>Fuzzy / alias match</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded" style="background:#FFA500"></span>Conflicting statuses</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded" style="background:#FF6666"></span>Postal mismatch — verify</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded" style="background:#D8B4FE"></span>Not in Hubspot (RTA sheet)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it works ───────────────────────────────────────────── -->
+  <section id="how-it-works" class="max-w-6xl mx-auto px-6 py-24">
+    <div class="text-center mb-14">
+      <h2 class="font-serif text-4xl sm:text-5xl text-slate-900 mb-3">From spreadsheet pile<br class="hidden sm:inline" /> to actionable data.</h2>
+      <p class="text-slate-500 text-lg max-w-xl mx-auto">Three steps. Under a minute.</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="text-center">
+        <div class="w-14 h-14 rounded-2xl bg-blue-700 text-white flex items-center justify-center mx-auto mb-4 text-xl font-bold font-serif shadow-lg shadow-blue-200">1</div>
+        <h3 class="font-semibold text-slate-900 mb-2 text-lg">Upload</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Upload your Hubspot export and your RTA file — Excel or CSV. Select the relevant columns. The original files are parsed in memory and immediately discarded.</p>
+      </div>
+      <div class="text-center">
+        <div class="w-14 h-14 rounded-2xl bg-blue-700 text-white flex items-center justify-center mx-auto mb-4 text-xl font-bold font-serif shadow-lg shadow-blue-200">2</div>
+        <h3 class="font-semibold text-slate-900 mb-2 text-lg">Match</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Five matching passes run in order — exact, direction-stripped, alias-resolved, unit-stripped, and opt-in street-only. Conflicts detected automatically. Postal-code typos corrected.</p>
+      </div>
+      <div class="text-center">
+        <div class="w-14 h-14 rounded-2xl bg-blue-700 text-white flex items-center justify-center mx-auto mb-4 text-xl font-bold font-serif shadow-lg shadow-blue-200">3</div>
+        <h3 class="font-semibold text-slate-900 mb-2 text-lg">Download &amp; search</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Download a colour-coded Excel with Hubspot and RTA sheets. Matched results are saved — search any address across all your past runs from any device.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Three tools ────────────────────────────────────────────── -->
+  <section class="bg-slate-50 border-y border-slate-100">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <div class="text-center mb-14">
+        <h2 class="font-serif text-4xl sm:text-5xl text-slate-900 mb-3">Three tools, one login.</h2>
+        <p class="text-slate-500 text-lg">Everything your team needs to keep Hubspot and RTA in sync.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="bg-white rounded-2xl border border-slate-200 p-7 hover:shadow-lg hover:shadow-slate-100 transition">
+          <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-5 text-lg">
+            <i class="fa-solid fa-magnifying-glass-location"></i>
+          </div>
+          <h3 class="font-serif text-xl text-slate-900 mb-2">Address Matcher</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Upload Hubspot and RTA files. Every contact gets its RTA Address + RTA Status appended. Fuzzy names, unit numbers, and aliases handled automatically.</p>
+          <ul class="text-xs text-slate-400 space-y-1.5">
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Conflict detection (orange rows)</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Unmatched RTA addresses flagged purple</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>17 built-in street-name aliases</li>
+          </ul>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-7 hover:shadow-lg hover:shadow-slate-100 transition">
+          <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-5 text-lg">
+            <i class="fa-solid fa-code-compare"></i>
+          </div>
+          <h3 class="font-serif text-xl text-slate-900 mb-2">RTA Snapshot Compare</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Drop in last month's and this month's RTA. See added, removed, and status-changed addresses — colour-coded. Seven-sheet Excel out.</p>
+          <ul class="text-xs text-slate-400 space-y-1.5">
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Green: In Construction → RTA</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Yellow: RTA → In Construction</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Orange: conflicts in the new file</li>
+          </ul>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-7 hover:shadow-lg hover:shadow-slate-100 transition">
+          <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-5 text-lg">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </div>
+          <h3 class="font-serif text-xl text-slate-900 mb-2">Cross-run Search</h3>
+          <p class="text-slate-500 text-sm leading-relaxed mb-4">Type any address. See if it's in Hubspot, RTA, both, or neither — across every run you've ever saved. Works from any laptop once you're logged in.</p>
+          <ul class="text-xs text-slate-400 space-y-1.5">
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Same 5-pass normalization as the matcher</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Shows original row data on both sides</li>
+            <li class="flex items-start gap-2"><i class="fa-solid fa-check text-blue-600 mt-0.5"></i>Persists between sessions</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Security dark strip ────────────────────────────────────── -->
+  <section class="bg-slate-900 text-white">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <div class="grid md:grid-cols-2 gap-14 items-center">
+        <div>
+          <div class="inline-flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-full px-3 py-1 text-xs text-blue-300 tracking-wide mb-5">
+            <i class="fa-solid fa-shield-halved"></i> SECURITY
+          </div>
+          <h2 class="font-serif text-3xl sm:text-4xl mb-5">Your data, opaque at rest.</h2>
+          <p class="text-slate-300 text-base leading-relaxed">
+            Uploaded files never touch disk. Saved datasets are stored in a SQLCipher-encrypted SQLite database — without the key, the DB file is just noise. Per-user isolation. No cross-tenant visibility.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <i class="fa-solid fa-file-circle-xmark text-blue-400 text-xl mb-3"></i>
+            <p class="font-semibold text-sm mb-1">Files never on disk</p>
+            <p class="text-xs text-slate-400">Parsed in memory; the xlsx/csv blob is discarded immediately after processing.</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <i class="fa-solid fa-lock text-blue-400 text-xl mb-3"></i>
+            <p class="font-semibold text-sm mb-1">SQLCipher AES-256</p>
+            <p class="text-xs text-slate-400">Datasets and results stored encrypted at rest. Key lives in Doppler in production.</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <i class="fa-solid fa-user-lock text-blue-400 text-xl mb-3"></i>
+            <p class="font-semibold text-sm mb-1">Per-user isolation</p>
+            <p class="text-xs text-slate-400">Your saved runs are not visible to other users on the same instance.</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <i class="fa-solid fa-trash-can text-blue-400 text-xl mb-3"></i>
+            <p class="font-semibold text-sm mb-1">Delete = gone</p>
+            <p class="text-xs text-slate-400">Removing a dataset wipes both the encrypted DB row and the in-memory cache.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Final CTA ──────────────────────────────────────────────── -->
+  <section class="py-24 px-6 text-center bg-white">
+    <div class="max-w-2xl mx-auto">
+      <h2 class="font-serif text-4xl sm:text-5xl text-slate-900 mb-4">Ready to match?</h2>
+      <p class="text-slate-500 text-lg mb-8">Sign in to start. Account creation is admin-only — contact <a href="mailto:rupinder.monga@finel.ai" class="text-blue-700 hover:underline">rupinder.monga@finel.ai</a> for access.</p>
+      <button @click="view='login'"
+              class="bg-blue-700 text-white rounded-xl px-10 py-4 font-semibold text-lg hover:bg-blue-800 transition shadow-xl shadow-blue-100">
+        Sign in
+      </button>
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────────── -->
+  <footer class="border-t border-slate-100 bg-slate-50">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
+      <div class="flex items-center gap-4">
+        <a href="https://finel.ai" class="flex items-center gap-1.5 text-slate-700 hover:opacity-75 transition">
+          <img src="/static/favicon.svg" alt="Finel AI" class="w-5 h-5 rounded" />
+          <span class="font-semibold">Finel AI</span>
+        </a>
+        <span class="text-slate-300">·</span>
+        <a href="https://mortgage.finel.ai" class="hover:text-slate-900 transition">Mortgage</a>
+        <a href="https://books.finel.ai" class="hover:text-slate-900 transition">Books</a>
+        <a href="https://projects.finel.ai" class="hover:text-slate-900 transition">Projects</a>
+        <span class="text-blue-700 font-medium">RTA</span>
+      </div>
+      <a href="mailto:rupinder.monga@finel.ai" class="text-xs text-slate-400 hover:text-slate-700 transition">
+        rupinder.monga@finel.ai
+      </a>
+    </div>
+  </footer>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
      LOGIN
 ══════════════════════════════════════════════════════════════ -->
 <div x-show="view === 'login'" class="min-h-screen flex items-center justify-center bg-brand-gradient">
-  <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-    <div class="text-center mb-8">
+  <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
+    <button @click="view='landing'"
+            class="absolute top-4 left-4 text-slate-400 hover:text-slate-700 text-xs flex items-center gap-1">
+      <i class="fa-solid fa-arrow-left"></i> Back to home
+    </button>
+    <div class="text-center mb-8 mt-2">
       <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
       <h1 class="text-3xl font-serif text-slate-900 leading-tight">Finel AI</h1>
       <p class="text-gray-500 text-sm mt-1 tracking-wide uppercase">Hubspot RTA</p>
@@ -93,23 +439,56 @@
 <!-- ══════════════════════════════════════════════════════════════
      AUTHENTICATED SHELL
 ══════════════════════════════════════════════════════════════ -->
-<div x-show="view !== 'login'" class="flex flex-col h-screen overflow-hidden">
+<div x-show="view === 'matcher' || view === 'compare'" class="flex flex-col h-screen overflow-hidden">
 
-  <!-- Cross-app Finel strip — canonical pattern from finel-hub/brand/nav-example.tsx -->
-  <div class="w-full bg-slate-50 border-b border-slate-200 text-xs flex-shrink-0">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-8">
-      <a href="https://finel.ai" class="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition">
-        <img src="/static/favicon.svg" alt="Finel AI" class="h-4 w-4" />
-        <span class="font-semibold">Finel AI</span>
-      </a>
-      <nav class="flex items-center gap-4">
-        <a href="https://mortgage.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Mortgage</a>
-        <a href="https://books.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Books</a>
-        <a href="https://projects.finel.ai" class="text-slate-500 hover:text-slate-900 transition">Projects</a>
-        <a href="#" class="text-blue-600 font-medium">RTA</a>
-      </nav>
+  <!-- FinelAppNav: canonical source finel-hub/brand/nav-example.tsx -->
+  <nav class="bg-white border-b border-gray-100 flex-shrink-0 z-40"
+       x-data="{ fnMobileOpen: false, fnServicesOpen: false }">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-20 items-center">
+        <a href="https://finel.ai" class="flex-shrink-0 flex items-center gap-2.5 group">
+          <img src="/static/favicon.svg" alt="Finel AI" class="h-10 w-10" />
+          <div class="flex flex-col leading-none">
+            <span class="font-bold text-2xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">Finel AI</span>
+            <span class="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mt-0.5">Hubspot RTA</span>
+          </div>
+        </a>
+        <div class="hidden lg:flex items-center space-x-8">
+          <a href="https://finel.ai/" class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">Home</a>
+          <div class="relative" @mouseenter="fnServicesOpen=true" @mouseleave="fnServicesOpen=false">
+            <button class="flex items-center gap-1 text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Services
+              <svg class="w-4 h-4 transition-transform" :class="fnServicesOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div x-show="fnServicesOpen" x-transition class="absolute top-full left-1/2 -translate-x-1/2 pt-3 z-50 w-56">
+              <div class="bg-white rounded-xl shadow-xl border border-gray-100 py-2">
+                <a href="https://finel.ai/tax"        class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Finel Tax</a>
+                <a href="https://finel.ai/mortgage"   class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Finel Mortgage</a>
+                <a href="https://finel.ai/wealth"     class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Wealth Management</a>
+                <a href="https://finel.ai/finconsult" class="block px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">Financial Consulting</a>
+              </div>
+            </div>
+          </div>
+          <a href="https://finel.ai/aitools" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-slate-900 text-white text-base font-semibold hover:bg-slate-700 transition-colors">AI Tools</a>
+          <a href="https://finel.ai/about"     class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">About Us</a>
+          <a href="https://finel.ai/resources" class="text-base font-medium text-gray-500 hover:text-gray-900 transition-colors">Resources</a>
+          <a href="https://finel.ai/contact"   class="px-5 py-2.5 rounded-lg bg-slate-900 text-white font-semibold text-base hover:bg-slate-700 transition-colors whitespace-nowrap">Book a Consultation</a>
+        </div>
+        <button class="lg:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors" @click="fnMobileOpen=!fnMobileOpen">
+          <svg x-show="!fnMobileOpen" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <svg x-show="fnMobileOpen"  class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
     </div>
-  </div>
+    <div x-show="fnMobileOpen" x-transition class="lg:hidden border-t border-gray-100 bg-white px-4 pb-4 pt-2 space-y-1">
+      <a href="https://finel.ai/" class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">Home</a>
+      <a href="https://finel.ai/aitools" class="block px-3 py-2.5 rounded-lg text-base font-medium text-blue-600 bg-blue-50">AI Tools</a>
+      <a href="https://finel.ai/about"      class="block px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-gray-50">About Us</a>
+      <a href="https://finel.ai/contact"    class="block mt-2 px-3 py-2.5 rounded-lg text-base font-semibold text-center bg-slate-900 text-white">Book a Consultation</a>
+    </div>
+  </nav>
 
   <div class="flex flex-1 overflow-hidden">
 
@@ -135,6 +514,60 @@
           <i class="fa-solid fa-code-compare w-4"></i> RTA Status Compare
         </button>
       </nav>
+      <!-- Saved datasets (encrypted at rest) — matcher only -->
+      <div x-show="view==='matcher'" class="px-3 py-2 border-t border-slate-700">
+        <details class="text-xs" open>
+          <summary class="cursor-pointer text-blue-300 hover:text-white py-1.5 px-2 rounded">
+            <i class="fa-solid fa-database w-4"></i>
+            Saved datasets
+            <span x-show="datasets.length > 0" class="text-slate-400" x-text="'(' + datasets.length + ')'"></span>
+          </summary>
+          <div x-show="datasets.length === 0" class="mt-2 px-2 italic text-slate-400">No runs yet.</div>
+          <div class="mt-1 max-h-72 overflow-y-auto space-y-1">
+            <template x-for="d in datasets" :key="d.id">
+              <div class="bg-slate-950 rounded p-2 group flex items-start gap-2">
+                <button @click="matcher.selectDataset(d.id)"
+                        class="flex-1 text-left text-blue-100 hover:text-white">
+                  <div class="font-medium leading-tight" x-text="d.label || ('Dataset #' + d.id)"></div>
+                  <div class="text-[10px] text-slate-400 leading-tight" x-text="formatTimestamp(d.created_at)"></div>
+                  <div class="text-[10px] text-slate-300 leading-tight">
+                    <span x-text="d.hubspot_matched + '/' + d.hubspot_total + ' Hub'"></span>
+                    ·
+                    <span x-text="d.rta_in_hubspot + '/' + d.rta_total + ' RTA'"></span>
+                    <span x-show="d.has_conflicts" class="text-orange-400 ml-1">⚠</span>
+                  </div>
+                </button>
+                <button @click="matcher.deleteDataset(d.id)"
+                        class="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                        title="Delete">
+                  <i class="fa-solid fa-trash text-[10px]"></i>
+                </button>
+              </div>
+            </template>
+          </div>
+        </details>
+      </div>
+
+      <!-- Aliases (read-only) — visible from both views since both use the alias map -->
+      <div class="px-3 py-2 border-t border-slate-700">
+        <details class="text-xs">
+          <summary class="cursor-pointer text-blue-300 hover:text-white py-1.5 px-2 rounded">
+            <i class="fa-solid fa-list w-4"></i> Street name aliases
+          </summary>
+          <div class="mt-2 max-h-48 overflow-y-auto bg-slate-950 rounded p-2 space-y-1 text-[10px] text-blue-100">
+            <template x-for="a in aliases" :key="a.variant">
+              <div class="font-mono leading-tight">
+                <span class="text-blue-300" x-text="a.variant"></span>
+                <span class="text-slate-500"> → </span>
+                <span x-text="a.canonical"></span>
+              </div>
+            </template>
+            <div x-show="aliases.length === 0" class="italic text-slate-500">Loading…</div>
+          </div>
+          <p class="mt-1 px-1 text-[10px] text-slate-400 italic">Read-only in this version. Edit via PR until per-user editing lands.</p>
+        </details>
+      </div>
+
       <div class="px-5 py-4 border-t border-slate-700">
         <div class="text-xs text-blue-300 mb-1">Signed in as</div>
         <div class="flex items-center gap-1.5">
@@ -156,6 +589,141 @@
           <h2 class="text-xl font-bold text-gray-800">Address Matcher</h2>
           <p class="text-sm text-gray-500">Match Hubspot contacts against the RTA database. Bring back the RTA address + status onto each Hubspot row.</p>
         </div>
+
+        <!-- ── Search across all saved datasets ──────────────────────── -->
+        <div x-show="datasets.length > 0" class="bg-white rounded-xl border p-4 mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-800">
+              <i class="fa-solid fa-magnifying-glass mr-1 text-blue-700"></i> Search across saved datasets
+            </h3>
+            <span class="text-xs text-gray-500" x-text="'Searching ' + datasets.length + ' dataset(s) — encrypted at rest'"></span>
+          </div>
+          <form @submit.prevent="matcher.runSearch()" class="flex flex-wrap gap-2">
+            <input x-model="matcher.searchQuery" type="text" placeholder="Address (e.g. 97 Pioneer Rd)" required
+                   class="flex-1 min-w-[260px] border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <input x-model="matcher.searchPostal" type="text" placeholder="Postal (optional)" maxlength="10"
+                   class="w-32 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <select x-model="matcher.searchScope"
+                    class="border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="all">All datasets</option>
+              <template x-for="d in datasets" :key="d.id">
+                <option :value="String(d.id)" x-text="(d.label || ('Dataset #' + d.id))"></option>
+              </template>
+            </select>
+            <button type="submit" :disabled="matcher.searchRunning"
+                    class="bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-800 disabled:opacity-50 transition">
+              <span x-show="!matcher.searchRunning">Search</span>
+              <span x-show="matcher.searchRunning"><i class="fa-solid fa-spinner fa-spin"></i></span>
+            </button>
+          </form>
+
+          <div x-show="matcher.searchError" class="mt-2 bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700" x-text="matcher.searchError"></div>
+
+          <div x-show="matcher.searchResult" class="mt-3 space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="inline-block px-2 py-1 rounded border text-xs font-semibold"
+                    :class="matcher.verdictBadgeClass(matcher.searchResult?.verdict)"
+                    x-text="matcher.verdictLabel(matcher.searchResult?.verdict)"></span>
+              <span class="text-xs text-gray-500">
+                Normalized as
+                <code class="bg-gray-100 rounded px-1 py-0.5 font-mono"
+                      x-text="(matcher.searchResult?.normalized_keys || []).join(' / ')"></code>
+              </span>
+            </div>
+
+            <template x-for="ds in (matcher.searchResult?.datasets || [])" :key="ds.dataset_id">
+              <div class="border rounded-lg p-3 bg-gray-50">
+                <div class="text-xs text-gray-500 mb-2">
+                  <strong x-text="ds.label || ('Dataset #' + ds.dataset_id)"></strong>
+                  · <span x-text="formatTimestamp(ds.created_at)"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <p class="text-xs font-semibold text-gray-700 mb-1">
+                      Hubspot
+                      <span class="font-normal text-gray-500" x-text="'(' + ds.in_hubspot.length + ')'"></span>
+                    </p>
+                    <div x-show="ds.in_hubspot.length === 0" class="text-xs italic text-gray-400">no matches</div>
+                    <div class="space-y-1">
+                      <template x-for="(h, i) in ds.in_hubspot" :key="i">
+                        <div class="bg-white rounded border border-blue-200 p-2 text-xs">
+                          <span class="font-mono text-[10px] text-blue-700 mr-1" x-text="h.match_type"></span>
+                          <template x-for="(v, k) in h.row" :key="k">
+                            <div class="leading-tight">
+                              <span class="text-gray-500" x-text="k + ':'"></span>
+                              <span class="font-medium" x-text="v"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-700 mb-1">
+                      RTA
+                      <span class="font-normal text-gray-500" x-text="'(' + ds.in_rta.length + ')'"></span>
+                    </p>
+                    <div x-show="ds.in_rta.length === 0" class="text-xs italic text-gray-400">no matches</div>
+                    <div class="space-y-1">
+                      <template x-for="(h, i) in ds.in_rta" :key="i">
+                        <div class="bg-white rounded border border-purple-200 p-2 text-xs">
+                          <span class="font-mono text-[10px] text-purple-700 mr-1" x-text="h.match_type"></span>
+                          <template x-for="(v, k) in h.row" :key="k">
+                            <div class="leading-tight">
+                              <span class="text-gray-500" x-text="k + ':'"></span>
+                              <span class="font-medium" x-text="v"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <div x-show="(matcher.searchResult?.datasets || []).length === 0 && matcher.searchResult?.verdict === 'neither'"
+                 class="text-xs italic text-gray-500">No matches in any saved dataset.</div>
+          </div>
+        </div>
+
+        <details class="bg-white rounded-xl border p-4 mb-4 text-sm">
+          <summary class="cursor-pointer font-semibold text-gray-800">How does this app work?</summary>
+          <div class="mt-3 space-y-3 text-gray-700">
+            <p><strong>What it does:</strong> compares addresses from your Hubspot contact list against the RTA (Ready to Activate) database. For each Hubspot contact, it checks whether the address exists in RTA and brings back the RTA address + status.</p>
+            <div>
+              <p class="font-semibold mb-1">How matching works (5 passes, safest to riskiest):</p>
+              <ol class="list-decimal pl-5 space-y-0.5 text-xs">
+                <li><strong>Exact</strong> — street + postal code match perfectly after normalization (Street/ST, Road/RD, etc. standardized; PO Boxes / Suites stripped).</li>
+                <li><strong>Direction strip</strong> — same as above, but trailing N/S/E/W ignored. "28 Alton Lane" matches "28 Alton Lane East".</li>
+                <li><strong>Fuzzy / alias</strong> — known street-name variants treated as one. "Findlay Hill Rd" = "Findlay Rd", "Panache Northshore Rd" = "Panache N Shr Rd". (Aliases visible in the sidebar.)</li>
+                <li><strong>Unit suffix strip</strong> — "-U1" / "-U2" stripped. "97-U2 Pioneer Rd" matches "97 Pioneer Rd".</li>
+                <li><strong>Street-only</strong> <em>(opt-in)</em> — match on street alone, ignoring postal code. Risky because different towns can share a street name.</li>
+              </ol>
+            </div>
+            <div>
+              <p class="font-semibold mb-1">Why <em>Hubspot Matched</em> can differ from <em>RTA In Hubspot</em>:</p>
+              <p class="text-xs">Multiple Hubspot contacts can live at the same RTA address (e.g. two people at 123 Main St). The Hubspot count counts rows; the RTA count counts unique RTA records.</p>
+            </div>
+            <div>
+              <p class="font-semibold mb-1">Color coding (Hubspot sheet in the downloaded Excel):</p>
+              <ul class="list-disc pl-5 space-y-0.5 text-xs">
+                <li><strong>White</strong> — Exact match.</li>
+                <li><strong>Yellow</strong> — Fuzzy match (alias / direction / unit).</li>
+                <li><strong>Orange</strong> — RTA has conflicting statuses for this address.</li>
+                <li><strong>Red</strong> — Street matched but postal codes differ — verify manually.</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-semibold mb-1">Color coding (RTA sheet):</p>
+              <ul class="list-disc pl-5 space-y-0.5 text-xs">
+                <li><strong>Purple</strong> — NOT in Hubspot (flag for Redrabbit update).</li>
+                <li><strong>White</strong> — matched to at least one Hubspot record.</li>
+              </ul>
+            </div>
+            <p class="text-xs"><strong>Postal code correction:</strong> common typos like "O" vs "0" and "I" vs "1" are auto-fixed (e.g. "POM" → "P0M"). Empty / NaN postal codes won't false-match.</p>
+          </div>
+        </details>
 
         <!-- File upload card -->
         <div class="bg-white rounded-xl border p-6 mb-4">
@@ -271,19 +839,37 @@
           </div>
         </div>
 
-        <!-- Run button -->
-        <button x-show="matcher.hubFile && matcher.rtaFile"
-                @click="matcher.run()"
-                :disabled="matcher.running"
-                class="w-full bg-blue-700 text-white rounded-lg py-3 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition flex items-center justify-center gap-2 mb-4">
-          <span x-show="!matcher.running"><i class="fa-solid fa-magnifying-glass"></i> Run Address Matching</span>
-          <span x-show="matcher.running"><i class="fa-solid fa-spinner fa-spin"></i> Matching addresses...</span>
-        </button>
+        <!-- Label + Run -->
+        <div x-show="matcher.hubFile && matcher.rtaFile" class="mb-4 space-y-2">
+          <label class="block text-xs text-gray-600">
+            Label this run (optional — defaults to a timestamp)
+            <input x-model="matcher.label" type="text" placeholder="e.g. April Hubspot pull"
+                   class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </label>
+          <button @click="matcher.run()"
+                  :disabled="matcher.running"
+                  class="w-full bg-blue-700 text-white rounded-lg py-3 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition flex items-center justify-center gap-2">
+            <span x-show="!matcher.running"><i class="fa-solid fa-magnifying-glass"></i> Run Address Matching</span>
+            <span x-show="matcher.running"><i class="fa-solid fa-spinner fa-spin"></i> Matching addresses...</span>
+          </button>
+        </div>
 
         <div x-show="matcher.error" class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-4" x-text="matcher.error"></div>
 
         <!-- Result dashboard -->
         <div x-show="matcher.result" class="space-y-4">
+          <!-- Loaded-dataset header -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs flex items-center justify-between">
+            <div>
+              <span class="font-semibold text-blue-900">Currently viewing:</span>
+              <span x-text="matcher.result?.label || ('Dataset #' + matcher.result?.dataset_id)" class="text-blue-900"></span>
+              <span class="text-blue-700 ml-2" x-text="formatTimestamp(matcher.result?.created_at)"></span>
+            </div>
+            <button @click="matcher.result = null" class="text-blue-700 hover:text-blue-900" title="Close">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
           <!-- Stats -->
           <div class="grid grid-cols-2 gap-4">
             <div class="bg-white rounded-xl border p-4">
@@ -302,6 +888,14 @@
                 <div><div class="text-2xl font-bold text-purple-600" x-text="matcher.result?.stats.rta_not_in_hubspot"></div><div class="text-xs text-gray-500">Not in Hubspot</div></div>
               </div>
             </div>
+          </div>
+
+          <!-- "Why X vs Y?" diff explanation when hubspot_matched != rta_in_hubspot -->
+          <div x-show="matcher.result && matcher.result.stats.hubspot_matched !== matcher.result.stats.rta_in_hubspot"
+               class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900">
+            <strong>Why <span x-text="matcher.result?.stats.hubspot_matched"></span> vs <span x-text="matcher.result?.stats.rta_in_hubspot"></span>?</strong>
+            <span x-text="(matcher.result?.stats.hubspot_matched - matcher.result?.stats.rta_in_hubspot)"></span>
+            Hubspot row(s) map to the same RTA address (duplicate Hubspot entries pointing to one RTA record).
           </div>
 
           <div class="bg-white rounded-xl border p-4">
@@ -346,13 +940,89 @@
             </p>
           </div>
 
-          <!-- Conflicts -->
+          <!-- Conflicts (count + detail table) -->
           <div x-show="matcher.result?.conflicts.length > 0" class="bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <h4 class="text-sm font-semibold text-orange-900 mb-2">
+            <h4 class="text-sm font-semibold text-orange-900 mb-1">
               <i class="fa-solid fa-triangle-exclamation"></i>
-              <span x-text="matcher.result?.conflicts.length"></span> RTA address(es) have conflicting statuses
+              RTA address(es) have conflicting statuses
             </h4>
-            <p class="text-xs text-orange-800 mb-3">All candidates are concatenated into the matched cell so you can review.</p>
+            <p class="text-xs text-orange-800 mb-3">All candidates are concatenated into the matched cell so you can review. Showing the conflicting RTA rows below.</p>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto bg-white rounded-lg border border-orange-200">
+              <table class="w-full text-xs">
+                <thead class="bg-orange-100 sticky top-0">
+                  <tr>
+                    <th class="text-left px-2 py-1.5 font-medium text-orange-900">Address</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-orange-900">Postal</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-orange-900">Status</th>
+                    <th class="text-left px-2 py-1.5 font-medium text-orange-900">Key</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in matcher.result.conflicts" :key="i">
+                    <tr class="border-t border-orange-100">
+                      <td class="px-2 py-1" x-text="row.address"></td>
+                      <td class="px-2 py-1" x-text="row.postal_code"></td>
+                      <td class="px-2 py-1 font-semibold" x-text="row.status"></td>
+                      <td class="px-2 py-1 font-mono text-[10px] text-gray-500" x-text="row.key"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- RTA not in Hubspot preview -->
+          <div x-show="matcher.result?.rta_not_in_hubspot_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-1">
+              🟪 RTA addresses not in Hubspot
+              <span class="text-xs font-normal text-gray-500" x-text="'(' + matcher.result?.stats.rta_not_in_hubspot + ' total — flag for Redrabbit update)'"></span>
+            </h4>
+            <p class="text-xs text-gray-500 mb-2">First <span x-text="matcher.result?.rta_not_in_hubspot_preview.length"></span> rows. Full list (purple-highlighted) in the downloaded Excel's RTA sheet.</p>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <template x-for="k in (matcher.result?.rta_not_in_hubspot_preview[0] ? Object.keys(matcher.result.rta_not_in_hubspot_preview[0]) : [])" :key="k">
+                      <th class="text-left px-2 py-1.5 font-medium text-gray-600" x-text="k"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in matcher.result.rta_not_in_hubspot_preview" :key="i">
+                    <tr class="border-t">
+                      <template x-for="(v, k) in row" :key="k">
+                        <td class="px-2 py-1" x-text="v"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Hubspot output preview (first 20 with appended RTA fields) -->
+          <div x-show="matcher.result?.hub_output_preview && matcher.result.hub_output_preview.length > 0" class="bg-white rounded-xl border p-4">
+            <h4 class="text-sm font-semibold text-gray-800 mb-2">Hubspot output preview (first 20 rows)</h4>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <template x-for="k in (matcher.result?.hub_output_preview[0] ? Object.keys(matcher.result.hub_output_preview[0]) : [])" :key="k">
+                      <th class="text-left px-2 py-1.5 font-medium text-gray-600" x-text="k"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in matcher.result.hub_output_preview" :key="i">
+                    <tr class="border-t">
+                      <template x-for="(v, k) in row" :key="k">
+                        <td class="px-2 py-1" x-text="v"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Download -->
@@ -360,6 +1030,27 @@
                   class="w-full bg-green-600 text-white rounded-lg py-3 font-semibold text-sm hover:bg-green-700 transition flex items-center justify-center gap-2">
             <i class="fa-solid fa-download"></i> Download color-coded Excel
           </button>
+
+          <!-- Color legend -->
+          <div class="bg-white rounded-xl border p-4 text-xs text-gray-700 space-y-2">
+            <p class="font-semibold text-gray-800">Color legend</p>
+            <div>
+              <p class="font-medium text-gray-700 mb-1">Hubspot sheet:</p>
+              <ul class="list-disc pl-5 space-y-0.5">
+                <li><span class="inline-block w-3 h-3 bg-white border align-middle"></span> <strong>White</strong> — Exact match (high confidence).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#FFFF00"></span> <strong>Yellow</strong> — Fuzzy match (alias / direction stripped / unit stripped).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#FFA500"></span> <strong>Orange</strong> — RTA has conflicting statuses for this address.</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#FF6666"></span> <strong>Red</strong> — Street matched but postal codes differ — verify manually.</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-medium text-gray-700 mb-1">RTA sheet:</p>
+              <ul class="list-disc pl-5 space-y-0.5">
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#D8B4FE"></span> <strong>Purple</strong> — NOT in Hubspot (flag for Redrabbit update).</li>
+                <li><span class="inline-block w-3 h-3 bg-white border align-middle"></span> <strong>White</strong> — matched to at least one Hubspot record.</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -369,6 +1060,32 @@
           <h2 class="text-xl font-bold text-gray-800">RTA Status Compare</h2>
           <p class="text-sm text-gray-500">Compare two RTA snapshots — find what was added, removed, status-changed, or conflicting in the new file.</p>
         </div>
+
+        <details class="bg-white rounded-xl border p-4 mb-4 text-sm">
+          <summary class="cursor-pointer font-semibold text-gray-800">How does this work?</summary>
+          <div class="mt-3 space-y-3 text-gray-700">
+            <div>
+              <p class="font-semibold mb-1">What it does:</p>
+              <ol class="list-decimal pl-5 space-y-0.5 text-xs">
+                <li><strong>Removed</strong> — addresses present in the old file but gone in the new file.</li>
+                <li><strong>Added</strong> — addresses that appeared in the new file.</li>
+                <li><strong>Status Changed</strong> — same address in both, but the RTA Status moved (e.g. <em>In Construction</em> → <em>RTA</em>).</li>
+                <li><strong>Conflicts in New</strong> — same address appearing more than once in the new file with different statuses.</li>
+              </ol>
+            </div>
+            <p class="text-xs"><strong>Address matching:</strong> uses the same normalization as the matcher (case + abbreviations standardized, alias map applied, postal-code typos auto-corrected, trailing direction and unit suffixes stripped) so minor format differences between snapshots don't falsely show as add/remove.</p>
+            <div>
+              <p class="font-semibold mb-1">Color legend:</p>
+              <ul class="list-disc pl-5 space-y-0.5 text-xs">
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#D8B4FE"></span> <strong>Purple</strong> — Removed (in Old, not in New).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#BFDBFE"></span> <strong>Blue</strong> — Added (in New, not in Old).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#86EFAC"></span> <strong>Green</strong> — Status changed: <em>In Construction → RTA</em> (forward).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#FFFF00"></span> <strong>Yellow</strong> — Status changed: <em>RTA → In Construction</em> (regression — review).</li>
+                <li><span class="inline-block w-3 h-3 align-middle" style="background:#FFA500"></span> <strong>Orange</strong> — Conflict in New file (multiple statuses for the same address).</li>
+              </ul>
+            </div>
+          </div>
+        </details>
 
         <!-- File upload card -->
         <div class="bg-white rounded-xl border p-6 mb-4">
@@ -624,6 +1341,20 @@
                   class="w-full bg-green-600 text-white rounded-lg py-3 font-semibold text-sm hover:bg-green-700 transition flex items-center justify-center gap-2">
             <i class="fa-solid fa-download"></i> Download RTA Comparison Excel (7 sheets)
           </button>
+
+          <!-- Sheets in download -->
+          <div class="bg-white rounded-xl border p-4 text-xs text-gray-700">
+            <p class="font-semibold text-gray-800 mb-2">Sheets in the downloaded file</p>
+            <ol class="list-decimal pl-5 space-y-0.5">
+              <li><strong>Dashboard</strong> — summary counts (incl. forward/regress split).</li>
+              <li><strong>Old RTA</strong> — your old file as uploaded.</li>
+              <li><strong>New RTA</strong> — your new file as uploaded.</li>
+              <li><strong>Removed</strong> 🟪 — in Old, not in New.</li>
+              <li><strong>Added</strong> 🟦 — in New, not in Old.</li>
+              <li><strong>Status Changed</strong> — 🟩 <em>In Construction → RTA</em>, 🟨 <em>RTA → In Construction</em>.</li>
+              <li><strong>Conflicts in New</strong> 🟧 — same address, multiple statuses in the new file.</li>
+            </ol>
+          </div>
         </div>
       </div>
 
@@ -632,5 +1363,17 @@
 </div>
 
 <script src="/static/js/app.js"></script>
+
+<!-- FloatingAppPanel — landing page only. canonical: finel-hub/brand/floating-panel-example.tsx -->
+<div x-show="view === 'landing'" class="fixed right-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 items-end">
+  <button @click="view='login'"
+          class="block px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 shadow-md transition-all">
+    Sign in
+  </button>
+  <a href="#how-it-works"
+     class="block px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-slate-500 hover:text-slate-900 transition-all">
+    How it works
+  </a>
+</div>
 </body>
 </html>
