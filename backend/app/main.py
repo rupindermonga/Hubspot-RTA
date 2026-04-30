@@ -17,7 +17,6 @@ from .routes import auth, compare, matcher
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    os.makedirs(os.getenv("UPLOAD_FOLDER", "./uploads"), exist_ok=True)
     yield
 
 

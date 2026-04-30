@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime
 import re
 
@@ -66,12 +66,54 @@ class MatcherFlaggedRow(BaseModel):
     match_type: str  # "exact" | "fuzzy" | "direction_strip" | "conflict" | "no_pc"
 
 
+class DatasetSummary(BaseModel):
+    """List-row summary of a saved match dataset."""
+    id: int
+    created_at: datetime
+    label: Optional[str] = None
+    hubspot_total: int
+    hubspot_matched: int
+    rta_total: int
+    rta_in_hubspot: int
+    has_conflicts: bool
+
+    class Config:
+        from_attributes = True
+
+
 class MatcherResponse(BaseModel):
-    download_token: str  # opaque key the client uses to GET the Excel
+    """Returned from POST /api/matcher/run."""
+    dataset_id: int
+    created_at: datetime
     stats: MatcherStats
     conflicts: List[MatcherConflictRow]
     flagged: List[MatcherFlaggedRow]
     rta_not_in_hubspot_preview: List[dict]
+    hub_output_preview: List[dict]
+
+
+class SearchHit(BaseModel):
+    """One matched row from a single dataset, on either side."""
+    source: Literal["hubspot", "rta"]
+    match_type: str  # exact | direction_strip | fuzzy | unit_strip
+    row: dict
+
+
+class SearchDatasetResult(BaseModel):
+    dataset_id: int
+    created_at: datetime
+    label: Optional[str] = None
+    in_hubspot: List[SearchHit]
+    in_rta: List[SearchHit]
+
+
+class SearchResponse(BaseModel):
+    query: str
+    postal: str
+    normalized_keys: List[str]
+    verdict: Literal["both", "hubspot_only", "rta_only", "neither"]
+    datasets: List[SearchDatasetResult]
+    summary: dict
 
 
 # ─── Compare (Old RTA vs New RTA) ────────────────────────────────────────────

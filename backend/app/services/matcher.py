@@ -351,6 +351,12 @@ def run_match(
     ].head(50)
     rta_not_in_hubspot_preview = rta_not_matched_df.to_dict(orient='records')
 
+    # Hubspot output preview: first 20 rows showing source columns + appended RTA fields
+    hub_preview_df = df_hub[[hub_street_col, hub_pc_col, 'RTA Address', 'RTA Status']].head(20).copy()
+    # Coerce NaN → '' so the JSON serializer doesn't drop or stringify them weirdly
+    hub_preview_df = hub_preview_df.fillna('')
+    hub_output_preview = hub_preview_df.to_dict(orient='records')
+
     # ── Build the colored XLSX ────────────────────────────────────────────
     match_type_series = df_hub['_match_type'].copy()
     df_hub_out = df_hub.drop(columns=[c for c in df_hub.columns if c.startswith('_')])
@@ -430,5 +436,10 @@ def run_match(
         'conflicts': conflict_detail,
         'flagged': flagged,
         'rta_not_in_hubspot_preview': rta_not_in_hubspot_preview,
+        'hub_output_preview': hub_output_preview,
         'excel_bytes': excel_bytes,
+        # DataFrames with _k_* normalization columns intact — caller pickles for
+        # later search via app.services.search.search_in_dataset.
+        'df_hub_keyed': df_hub,
+        'df_rta_keyed': df_rta,
     }

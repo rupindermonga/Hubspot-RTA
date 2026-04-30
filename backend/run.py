@@ -2,8 +2,18 @@
 
 Reads HOST / PORT / RELOAD from env so prd can bind 127.0.0.1 with no reloader
 (behind nginx) while dev keeps the 0.0.0.0:8000 + reload behaviour by default.
+
+In dev, .env is the source of truth (loaded via load_dotenv before reading
+os.environ). In prd under systemd, the unit's Environment= directives have
+already populated os.environ before this file runs — load_dotenv silently
+no-ops if .env is absent, so it's safe in both modes.
 """
 import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import uvicorn
 
 
